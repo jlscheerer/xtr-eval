@@ -1,6 +1,6 @@
 import kagglehub
 
-from xtr.modeling.xtr import XTRModel
+from xtr.config import XTRModel
 
 XTR_MODEL_TO_HUB = {
     XTRModel.BASE_EN: "deepmind/xtr/tensorFlow2/base-en",
