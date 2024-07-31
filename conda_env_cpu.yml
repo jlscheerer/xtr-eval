@@ -16,3 +16,4 @@ dependencies:
     - scann==1.2.6
     - tensorflow-hub
     - beir
+    - kagglehub
