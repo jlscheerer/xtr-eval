@@ -15,6 +15,9 @@ class XTRModel(Enum):
     XXL_MULTILINGUAL = 7
     XXL_MULTILINGUAL_TPU = 8
 
+TPU_MODELS = [XTRModel.BASE_EN_TPU, XTRModel.BASE_MULTILINGUAL_TPU, XTRModel.XXL_EN_TPU, XTRModel.XXL_MULTILINGUAL_TPU]
+MULTILINGUAL_MODELS = [XTRModel.BASE_MULTILINGUAL, XTRModel.BASE_MULTILINGUAL_TPU, XTRModel.XXL_MULTILINGUAL, XTRModel.XXL_MULTILINGUAL_TPU]
+
 class XTRIndexType(Enum):
     SCANN = 1
     FAISS = 2
@@ -51,3 +54,9 @@ class XTRConfig:
     @property
     def index_type(self):
         return self.index_config.index_type
+
+    def is_multilingual(self):
+        return self.model in MULTILINGUAL_MODELS
+
+    def is_tpu(self):
+        return self.model in TPU_MODELS

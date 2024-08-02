@@ -1,4 +1,5 @@
-from xtr.config import XTRModel, XTRConfig, XTRBruteForceIndexConfig
+from xtr.config import XTRConfig, XTRModel, XTRBruteForceIndexConfig
+from xtr.modeling.xtr import XTR
 
 config = XTRConfig(model=XTRModel.BASE_EN, index_config=XTRBruteForceIndexConfig())
-print(config.index_type)
+xtr = XTR(config=config)
