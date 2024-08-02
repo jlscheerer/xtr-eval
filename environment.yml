@@ -7,6 +7,7 @@ dependencies:
   - python=3.8
   - pip
   - pip:
+    - torch
     - pytrec_eval
     - nltk
     - tensorflow==2.8.2
@@ -17,3 +18,4 @@ dependencies:
     - tensorflow-hub
     - beir
     - kagglehub
+    - huggingface_hub

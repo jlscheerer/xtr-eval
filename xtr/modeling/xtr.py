@@ -1,16 +1,15 @@
-from tqdm import tqdm
 import numpy as np
+
+from tqdm import tqdm
 from typing import List
 
 import tensorflow as tf
-import tensorflow_text as tf_text
 
 import scann
 import faiss
 
 from xtr.config import XTRConfig, XTRIndexType
-from xtr.utils.gfile import gfile_load
-from xtr.utils.kaggle import kaggle_download_model
+from xtr.modeling.encoder import XTREncoder
 
 # Adapted from: https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
 class XTR(object):
@@ -38,18 +37,10 @@ class XTR(object):
             except Exception as e:
                 print(e)
 
-        MONOLINGUAL_TOKENIZER = "gs://t5-data/vocabs/cc_all.32000.100extra/sentencepiece.model"
-        MULTILINGUAL_TOKENIZER = "gs://t5-data/vocabs/mc4.250000.100extra/sentencepiece.model"
-        self.tokenizer = tf_text.SentencepieceTokenizer(model=gfile_load(MONOLINGUAL_TOKENIZER if not config.is_multilingual() else MULTILINGUAL_TOKENIZER), add_eos=True)
-
-        model = tf.saved_model.load(kaggle_download_model(config.model))
-        self.encoder = model.signatures["serving_default"]
-
-    def tokenize(self, text):
-        return [self.tokenizer.id_to_string(id_).numpy().decode('utf-8') for id_ in self.tokenizer.tokenize(text)]
+        self.encoder = XTREncoder(config)
 
     def get_token_embeddings(self, texts):
-        batch_embeds = self.encoder(tf.constant([t.lower() for t in texts]))
+        batch_embeds = self.encoder([t.lower() for t in texts])
         batch_lengths = np.sum(batch_embeds["mask"].numpy(), axis=1)
         return batch_embeds["encodings"].cpu().numpy(), batch_lengths
 
@@ -82,11 +73,11 @@ class XTR(object):
             all_token_embeds[num_tokens-len(batch_embeds):num_tokens] = batch_embeds
 
         # Use scann.scann_ops.build() to instead create a TensorFlow-compatible searcher.
-        if self.index_type == 'scann':
+        if self.config.index_type ==  XTRIndexType.SCANN:
             self.searcher = scann.scann_ops_pybind.builder(all_token_embeds[:num_tokens], 10, "dot_product").tree(
                 num_leaves=min(2000, num_tokens), num_leaves_to_search=100, training_sample_size=min(250000, num_tokens)).score_ah(
                 1, anisotropic_quantization_threshold=0.1).build()
-        elif self.index_type == 'faiss':
+        elif self.config.index_type ==  XTRIndexType.FAISS:
             # TODO(jlscheerer) Assert that we are using faiss-gpu!
             ds = 128
             num_clusters = 50
@@ -107,6 +98,7 @@ class XTR(object):
             self.searcher = FaissSearcher(index)
         # Used only for small-scale, exact inference.
         else:
+            assert self.config.index_type == XTRIndexType.BRUTE_FORCE
             class BruteForceSearcher(object):
                 def search_batched(self, query_embeds, final_num_neighbors, **kwargs):
                     scores = query_embeds.dot(all_token_embeds[:num_tokens].T) # Q x D

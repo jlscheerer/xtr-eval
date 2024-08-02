@@ -2,8 +2,10 @@ from abc import ABC
 from dataclasses import dataclass
 from enum import Enum
 
-MAX_SEQ_LEN = 512
 TOKEN_EMBED_DIM = 128
+QUERY_MAXLEN = 32
+DOC_MAXLEN = 512
+MAX_SEQ_LEN = 512
 
 class XTRModel(Enum):
     BASE_EN = 1
@@ -48,8 +50,10 @@ class XTRConfig:
     model: XTRModel
     index_config: XTRIndexConfig
 
-    max_seq_len: int = MAX_SEQ_LEN
     token_embed_dim: int = TOKEN_EMBED_DIM
+    query_maxlen: int = QUERY_MAXLEN
+    doc_maxlen: int = DOC_MAXLEN
+    max_seq_len: int = MAX_SEQ_LEN
 
     @property
     def index_type(self):
