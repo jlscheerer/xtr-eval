@@ -1,3 +1,4 @@
+import torch
 from transformers import AutoTokenizer
 
 from xtr.config import XTRConfig, XTRModel
@@ -13,13 +14,18 @@ class XTRTokenizer:
         self.config = config
         self.tokenizer = AutoTokenizer.from_pretrained("google/xtr-base-en")
 
-    def __call__(self, texts):
+        self.device = torch.device("cpu")
+
+    def to(self, device):
+        self.device = device
+
+    def __call__(self, texts, maxlen):
         if isinstance(texts, str):
             texts = [texts]
 
         tokenized = self.tokenizer(texts, return_tensors="pt", padding="max_length",
-                                   truncation=True, max_length=self.config.query_maxlen)
-        input_ids = tokenized["input_ids"]
-        attention_mask = tokenized["attention_mask"]
+                                   truncation=True, max_length=maxlen)
+        input_ids = tokenized["input_ids"].to(self.device)
+        attention_mask = tokenized["attention_mask"].to(self.device)
         
         return input_ids, attention_mask

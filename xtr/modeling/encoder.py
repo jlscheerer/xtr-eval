@@ -42,9 +42,16 @@ class XTREncoder(torch.nn.Module):
 
         self.tokenizer = XTRTokenizer(config)
 
-    def forward(self, texts):
+        # TODO(jlscheerer) We should change the device here.
+        self.device = torch.device("cuda")
+
+        self.tokenizer.to(self.device)
+        self.encoder.to(self.device)
+        self.linear.to(self.device)
+
+    def forward(self, texts, maxlen):
         with torch.inference_mode():
-            input_ids, attention_mask = self.tokenizer(texts)
+            input_ids, attention_mask = self.tokenizer(texts, maxlen=maxlen)
             Q = self.encoder(input_ids, attention_mask).last_hidden_state
             Q = self.linear(Q)
             mask = (input_ids != 0).unsqueeze(2).float()

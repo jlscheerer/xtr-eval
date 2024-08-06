@@ -25,4 +25,4 @@ class BasicQueries(Queries):
         else: self.queries = queries
 
     def __iter__(self):
-        return self.queries.__iter__()
+        return self.queries.items().__iter__()

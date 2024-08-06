@@ -72,13 +72,13 @@ class XTR(object):
         else:
             self._build_index(Collection.cast(collection))
 
-    def _get_token_embeddings(self, texts):
-        batch_embeds = self.encoder([t.lower() for t in texts])
-        batch_lengths = np.sum(batch_embeds["mask"].numpy(), axis=1)
+    def _get_token_embeddings(self, texts, maxlen):
+        batch_embeds = self.encoder([t.lower() for t in texts], maxlen=maxlen)
+        batch_lengths = np.sum(batch_embeds["mask"].cpu().numpy(), axis=1)
         return batch_embeds["encodings"].cpu().numpy(), batch_lengths
 
-    def _get_flatten_embeddings(self, batch_text, return_last_offset=False):
-        batch_embeddings, batch_lengths = self._get_token_embeddings(batch_text)
+    def _get_flatten_embeddings(self, batch_text, maxlen, return_last_offset=False):
+        batch_embeddings, batch_lengths = self._get_token_embeddings(batch_text, maxlen=maxlen)
         flatten_embeddings = None
         num_tokens = 0
         offsets = [0]
@@ -101,7 +101,7 @@ class XTR(object):
         all_doc_offsets = []
         num_tokens = 0
         for batch_idx, batch_docs in collection.enumerate_batches(batch_size=batch_size):
-            batch_embeds, batch_offsets = self._get_flatten_embeddings(batch_docs)
+            batch_embeds, batch_offsets = self._get_flatten_embeddings(batch_docs, maxlen=self.config.doc_maxlen)
             all_doc_offsets += [num_tokens + offset for offset in batch_offsets]
             num_tokens += len(batch_embeds)
             all_token_embeds[num_tokens-len(batch_embeds):num_tokens] = batch_embeds
@@ -240,7 +240,7 @@ class XTR(object):
         else: raise AssertionError(f"Unsupported XTRIndexType {config.index_type}!")
 
     def _batch_search_tokens(self, batch_query, token_top_k, leaves_to_search, pre_reorder_num_neighbors):
-        all_query_encodings, query_offsets = self._get_flatten_embeddings(batch_query.items(), return_last_offset=True)
+        all_query_encodings, query_offsets = self._get_flatten_embeddings(batch_query, maxlen=self.config.query_maxlen, return_last_offset=True)
         all_neighbors, all_scores = self.searcher.search_batched(
             all_query_encodings, final_num_neighbors=token_top_k, leaves_to_search=leaves_to_search, pre_reorder_num_neighbors=pre_reorder_num_neighbors
         )
@@ -329,14 +329,16 @@ class XTR(object):
         batch_query = Queries.cast(query)
         token_top_k = token_top_k or self.config.token_top_k
         document_top_k = document_top_k or self.config.document_top_k
-        if self.config.index_type ==  XTRIndexType.SCANN:
-            assert isinstance(self.config.index_config, XTRScaNNIndexConfig)
-            leaves_to_search = self.config.index_config.leaves_to_search
-            pre_reorder_num_neighbors = self.config.index_config.pre_reorder_num_neighbors
-        else:
-            leaves_to_search = None
-            pre_reorder_num_neighbors = None
-        batch_result = self._batch_search_tokens(batch_query, token_top_k=token_top_k, leaves_to_search=leaves_to_search, pre_reorder_num_neighbors=pre_reorder_num_neighbors)
-        batch_mae = self._estimate_missing_similarity(batch_result)
-        batch_ranking = self._aggregate_scores(batch_result, batch_mae, document_top_k)
-        return Rankings(self._get_document_text(batch_ranking) if return_text else batch_ranking)
+        for query_id, query_text in batch_query:
+            if self.config.index_type ==  XTRIndexType.SCANN:
+                assert isinstance(self.config.index_config, XTRScaNNIndexConfig)
+                leaves_to_search = self.config.index_config.leaves_to_search
+                pre_reorder_num_neighbors = self.config.index_config.pre_reorder_num_neighbors
+            else:
+                leaves_to_search = None
+                pre_reorder_num_neighbors = None
+            batch_result = self._batch_search_tokens([query_text], token_top_k=token_top_k, leaves_to_search=leaves_to_search, pre_reorder_num_neighbors=pre_reorder_num_neighbors)
+            batch_mae = self._estimate_missing_similarity(batch_result)
+            batch_ranking = self._aggregate_scores(batch_result, batch_mae, document_top_k)
+            # TODO(jlscheerer) Fix this for multiple queries
+            return Rankings(self._get_document_text(batch_ranking) if return_text else batch_ranking)

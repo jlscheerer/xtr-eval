@@ -15,7 +15,6 @@ class Rankings:
     def _has_document_text(self):
         if len(self.data) == 0:
             return True
-        print(self.data[0])
         return len(self.data[0][0]) == 3
 
     def _build_results_view(self, result, text=False, prefix=" "):
