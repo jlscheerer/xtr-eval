@@ -30,6 +30,9 @@ class Collection(abc.ABC):
             return BasicCollection(collection)
         return collection
 
+    def index_map(self):
+        return None
+
 class BasicCollection(Collection):
     def __init__(self, documents: List[str]):
         super().__init__()
@@ -49,6 +52,9 @@ class MappedCollection(BasicCollection):
     def __init__(self, documents: List[str], keys: List[str]):
         super().__init__(documents=documents)
         self.keys = keys
+
+    def index_map(self):
+        return self.keys
 
 class SentenceChunkedCollection(Collection):
     def __init__(self, document):

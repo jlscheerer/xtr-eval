@@ -2,6 +2,7 @@ import os
 import shutil
 import pickle
 from typing import Optional
+from tqdm import tqdm
 
 import numpy as np
 import tensorflow as tf
@@ -326,10 +327,12 @@ class XTR(object):
         return_text: bool = False,
     ):
         """Runs XTR retrieval for a query."""
+        rankings = dict()
+
         batch_query = Queries.cast(query)
         token_top_k = token_top_k or self.config.token_top_k
         document_top_k = document_top_k or self.config.document_top_k
-        for query_id, query_text in batch_query:
+        for query_id, query_text in tqdm(batch_query):
             if self.config.index_type ==  XTRIndexType.SCANN:
                 assert isinstance(self.config.index_config, XTRScaNNIndexConfig)
                 leaves_to_search = self.config.index_config.leaves_to_search
@@ -340,5 +343,9 @@ class XTR(object):
             batch_result = self._batch_search_tokens([query_text], token_top_k=token_top_k, leaves_to_search=leaves_to_search, pre_reorder_num_neighbors=pre_reorder_num_neighbors)
             batch_mae = self._estimate_missing_similarity(batch_result)
             batch_ranking = self._aggregate_scores(batch_result, batch_mae, document_top_k)
+            
             # TODO(jlscheerer) Fix this for multiple queries
-            return Rankings(self._get_document_text(batch_ranking) if return_text else batch_ranking)
+            results = self._get_document_text(batch_ranking) if return_text else batch_ranking
+            rankings[query_id] = results[0]
+
+        return Rankings(data=rankings, index_map=self.collection.index_map(), text=return_text)

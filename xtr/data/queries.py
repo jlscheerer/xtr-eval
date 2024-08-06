@@ -9,6 +9,10 @@ class Queries(abc.ABC):
     def __iter__(self):
         ...
 
+    @abc.abstractclassmethod
+    def __len__(self):
+        ...
+
     @staticmethod
     def cast(queries):
         if isinstance(queries, str):
@@ -23,6 +27,9 @@ class BasicQueries(Queries):
         if isinstance(queries, List):
             self.queries = {idx: query for idx, query in enumerate(queries)}
         else: self.queries = queries
+
+    def __len__(self):
+        return len(self.queries)
 
     def __iter__(self):
         return self.queries.items().__iter__()
