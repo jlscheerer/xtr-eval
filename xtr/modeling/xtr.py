@@ -1,7 +1,7 @@
 import numpy as np
 
 from tqdm import tqdm
-from typing import List
+from typing import Optional, Union, List
 
 import tensorflow as tf
 
@@ -39,13 +39,13 @@ class XTR(object):
 
         self.encoder = XTREncoder(config)
 
-    def get_token_embeddings(self, texts):
+    def _get_token_embeddings(self, texts):
         batch_embeds = self.encoder([t.lower() for t in texts])
         batch_lengths = np.sum(batch_embeds["mask"].numpy(), axis=1)
         return batch_embeds["encodings"].cpu().numpy(), batch_lengths
 
-    def get_flatten_embeddings(self, batch_text, return_last_offset=False):
-        batch_embeddings, batch_lengths = self.get_token_embeddings(batch_text)
+    def _get_flatten_embeddings(self, batch_text, return_last_offset=False):
+        batch_embeddings, batch_lengths = self._get_token_embeddings(batch_text)
         flatten_embeddings = None
         num_tokens = 0
         offsets = [0]
@@ -67,7 +67,7 @@ class XTR(object):
         num_tokens = 0
         for batch_idx in tqdm(range(0, len(documents), batch_size)):
             batch_docs = documents[batch_idx:batch_idx+batch_size]
-            batch_embeds, batch_offsets = self.get_flatten_embeddings(batch_docs)
+            batch_embeds, batch_offsets = self._get_flatten_embeddings(batch_docs)
             all_doc_offsets += [num_tokens + offset for offset in batch_offsets]
             num_tokens += len(batch_embeds)
             all_token_embeds[num_tokens-len(batch_embeds):num_tokens] = batch_embeds
@@ -129,8 +129,8 @@ class XTR(object):
         self.docs = documents
         print("Index Ready!", self.searcher)
 
-    def batch_search_tokens(self, batch_query, token_top_k=100, leaves_to_search=100, pre_reorder_num_neighbors=100):
-        all_query_encodings, query_offsets = self.get_flatten_embeddings(batch_query, return_last_offset=True)
+    def _batch_search_tokens(self, batch_query, token_top_k, leaves_to_search, pre_reorder_num_neighbors):
+        all_query_encodings, query_offsets = self._get_flatten_embeddings(batch_query, return_last_offset=True)
         all_neighbors, all_scores = self.searcher.search_batched(
             all_query_encodings, final_num_neighbors=token_top_k, leaves_to_search=leaves_to_search, pre_reorder_num_neighbors=pre_reorder_num_neighbors
         )
@@ -143,7 +143,7 @@ class XTR(object):
             for oid in range(len(query_offsets)-1)
         ]
 
-    def estimate_missing_similarity(self, batch_result):
+    def _estimate_missing_similarity(self, batch_result):
         batch_qtoken_to_ems = [dict() for _ in range(len(batch_result))]
         for b_idx, (query_tokens, _, distances) in enumerate(batch_result):
             for token_idx, qtoken in enumerate(query_tokens):
@@ -152,7 +152,7 @@ class XTR(object):
                 batch_qtoken_to_ems[b_idx][idx_t] = distances[token_idx][-1]
         return batch_qtoken_to_ems
 
-    def aggregate_scores(self, batch_result, batch_ems, document_top_k):
+    def _aggregate_scores(self, batch_result, batch_ems, document_top_k):
         """Aggregates token-level retrieval scores into query-document scores."""
 
         def get_did2scores(query_tokens, all_neighbors, all_scores):
@@ -177,7 +177,7 @@ class XTR(object):
             # |Q| x |Q|k' (assuming most docid is unique)
             for qtoken_idx, qtoken in enumerate(query_tokens):
                 qtoken_with_idx = (qtoken_idx, qtoken)
-                for docid, scores in did2scores.items():
+                for _, scores in did2scores.items():
                     if qtoken_with_idx not in scores:
                         scores[qtoken_with_idx] = ems[qtoken_with_idx]
         for did2scores, result, ems in zip(batch_did2scores, batch_result, batch_ems):
@@ -199,7 +199,7 @@ class XTR(object):
         ]
         return batch_ranking
 
-    def get_document_text(self, batch_ranking):
+    def _get_document_text(self, batch_ranking):
         batch_retrieved_docs = []
         for ranking in batch_ranking:
             retrieved_docs = []
@@ -210,18 +210,29 @@ class XTR(object):
 
     def retrieve_docs(
         self,
-        batch_query: List[str],
-        token_top_k: int = 100,
-        leaves_to_search: int = 100,
-        pre_reorder_num_neighbors: int = 100,
-        document_top_k: int = 100,
-        return_text: bool = True,
+        query: Union[str, List[str]],
+        token_top_k: Optional[int] = None,
+        document_top_k: Optional[int] = None,
+        return_text: bool = False,
     ):
         """Runs XTR retrieval for a query."""
-        batch_result = self.batch_search_tokens(batch_query, token_top_k=token_top_k, leaves_to_search=leaves_to_search, pre_reorder_num_neighbors=pre_reorder_num_neighbors)
-        batch_mae = self.estimate_missing_similarity(batch_result)
-        batch_ranking = self.aggregate_scores(batch_result, batch_mae, document_top_k)
+        if isinstance(query, List):
+            batch_query = query
+        else:
+            batch_query = [query]
+        token_top_k = token_top_k or self.config.token_top_k
+        document_top_k = document_top_k or self.config.document_top_k
+        if self.config.index_type ==  XTRIndexType.SCANN:
+            assert isinstance(self.config.index_config, XTRScaNNIndexConfig)
+            leaves_to_search = self.config.index_config.leaves_to_search
+            pre_reorder_num_neighbors = self.config.index_config.pre_reorder_num_neighbors
+        else:
+            leaves_to_search = None
+            pre_reorder_num_neighbors = None
+        batch_result = self._batch_search_tokens(batch_query, token_top_k=token_top_k, leaves_to_search=leaves_to_search, pre_reorder_num_neighbors=pre_reorder_num_neighbors)
+        batch_mae = self._estimate_missing_similarity(batch_result)
+        batch_ranking = self._aggregate_scores(batch_result, batch_mae, document_top_k)
         if return_text:
-            return self.get_document_text(batch_ranking), batch_result
+            return self._get_document_text(batch_ranking), batch_result
         else:
             return batch_ranking, batch_result

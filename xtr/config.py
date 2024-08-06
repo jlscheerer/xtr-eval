@@ -36,8 +36,8 @@ class XTRIndexConfig(ABC):
 class XTRScaNNIndexConfig(XTRIndexConfig):
     # Default parameters taken from https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
     def __init__(self, *, num_neighbors: int = 10, max_num_leaves: int = 2000, num_leaves_to_search: int = 100,
-                 max_training_sample_size: int = 250000, dimensions_per_block: int = 1,
-                 anisotropic_quantization_threshold: float = 0.1):
+                 max_training_sample_size: int = 250000, dimensions_per_block: int = 1, anisotropic_quantization_threshold: float = 0.1,
+                 leaves_to_search: int = 100, pre_reorder_num_neighbors: int = 100):
         super().__init__(XTRIndexType.SCANN)
         self.num_neighbors = num_neighbors
         self.max_num_leaves = max_num_leaves
@@ -46,9 +46,13 @@ class XTRScaNNIndexConfig(XTRIndexConfig):
         self.dimensions_per_block = dimensions_per_block
         self.anisotropic_quantization_threshold = anisotropic_quantization_threshold
 
+        # Parameters for `XTR.retrieve_docs`
+        self.leaves_to_search = leaves_to_search
+        self.pre_reorder_num_neighbors = pre_reorder_num_neighbors
+
 class XTRFAISSIndexConfig(XTRIndexConfig):
     # Default parameters taken from https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
-    def __init__(self, *; num_clusters: int = 50, code_size: int = 64, nbits_per_idx: int = 4,
+    def __init__(self, *, num_clusters: int = 50, code_size: int = 64, nbits_per_idx: int = 4,
                  opq_matrix_niter: int = 10):
         super().__init__(XTRIndexType.FAISS)
         self.num_clusters = num_clusters
@@ -69,6 +73,10 @@ class XTRConfig:
     query_maxlen: int = QUERY_MAXLEN
     doc_maxlen: int = DOC_MAXLEN
     max_seq_len: int = MAX_SEQ_LEN
+
+    # Default parameters taken from https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
+    token_top_k: int = 100
+    document_top_k: int = 100
 
     @property
     def index_type(self):
