@@ -15,6 +15,7 @@ from xtr.data.collection import Collection
 from xtr.data.queries import Queries
 from xtr.data.rankings import Rankings
 from xtr.modeling.encoder import XTREncoder
+from xtr.utils.tracker import NOPTracker
 
 # TODO(jlscheerer) Incorporate the following:
 """
@@ -240,12 +241,16 @@ class XTR(object):
             self.searcher = BruteForceSearcher(self.all_token_embeds)
         else: raise AssertionError(f"Unsupported XTRIndexType {config.index_type}!")
 
-    def _batch_search_tokens(self, batch_query, token_top_k, leaves_to_search, pre_reorder_num_neighbors):
+    def _batch_search_tokens(self, batch_query, token_top_k, leaves_to_search, pre_reorder_num_neighbors, tracker):
+        tracker.begin("Query Encoding")
         all_query_encodings, query_offsets = self._get_flatten_embeddings(batch_query, maxlen=self.config.query_maxlen, return_last_offset=True)
+        tracker.end("Query Encoding")
+
+        tracker.begin("Candidate Generation")
         all_neighbors, all_scores = self.searcher.search_batched(
             all_query_encodings, final_num_neighbors=token_top_k, leaves_to_search=leaves_to_search, pre_reorder_num_neighbors=pre_reorder_num_neighbors
         )
-        return [
+        result = [
             (
                 [f'q_{i}' for i in range(query_offsets[oid], query_offsets[oid+1])],  # query_id
                 all_neighbors[query_offsets[oid]:query_offsets[oid+1]],  # neighbors
@@ -253,19 +258,24 @@ class XTR(object):
             )
             for oid in range(len(query_offsets)-1)
         ]
+        tracker.end("Candidate Generation")
+        return result
 
-    def _estimate_missing_similarity(self, batch_result):
+    def _estimate_missing_similarity(self, batch_result, tracker):
+        tracker.begin("Estimate Missing Similarity")
         batch_qtoken_to_ems = [dict() for _ in range(len(batch_result))]
         for b_idx, (query_tokens, _, distances) in enumerate(batch_result):
             for token_idx, qtoken in enumerate(query_tokens):
                 idx_t = (token_idx, qtoken)
                 # Use similarity of the last token as imputed similarity.
                 batch_qtoken_to_ems[b_idx][idx_t] = distances[token_idx][-1]
+        tracker.end("Estimate Missing Similarity")
         return batch_qtoken_to_ems
 
-    def _aggregate_scores(self, batch_result, batch_ems, document_top_k):
+    def _aggregate_scores(self, batch_result, batch_ems, document_top_k, tracker):
         """Aggregates token-level retrieval scores into query-document scores."""
 
+        tracker.begin("Aggregate Scores")
         def get_did2scores(query_tokens, all_neighbors, all_scores):
             did2scores = {}
             # |Q| x k'
@@ -308,6 +318,7 @@ class XTR(object):
             sorted([(docid, score) for docid, score in final_qd_score.items()], key=lambda x: x[1], reverse=True)[:document_top_k]
             for final_qd_score in batch_scores
         ]
+        tracker.end("Aggregate Scores")
         return batch_ranking
 
     def _get_document_text(self, batch_ranking):
@@ -325,6 +336,7 @@ class XTR(object):
         token_top_k: Optional[int] = None,
         document_top_k: Optional[int] = None,
         return_text: bool = False,
+        tracker = NOPTracker()
     ):
         """Runs XTR retrieval for a query."""
         rankings = dict()
@@ -333,6 +345,7 @@ class XTR(object):
         token_top_k = token_top_k or self.config.token_top_k
         document_top_k = document_top_k or self.config.document_top_k
         for query_id, query_text in tqdm(batch_query):
+            tracker.next_iteration()
             if self.config.index_type ==  XTRIndexType.SCANN:
                 assert isinstance(self.config.index_config, XTRScaNNIndexConfig)
                 leaves_to_search = self.config.index_config.leaves_to_search
@@ -340,12 +353,14 @@ class XTR(object):
             else:
                 leaves_to_search = None
                 pre_reorder_num_neighbors = None
-            batch_result = self._batch_search_tokens([query_text], token_top_k=token_top_k, leaves_to_search=leaves_to_search, pre_reorder_num_neighbors=pre_reorder_num_neighbors)
-            batch_mae = self._estimate_missing_similarity(batch_result)
-            batch_ranking = self._aggregate_scores(batch_result, batch_mae, document_top_k)
+            batch_result = self._batch_search_tokens([query_text], token_top_k=token_top_k, leaves_to_search=leaves_to_search,
+                                                     pre_reorder_num_neighbors=pre_reorder_num_neighbors, tracker=tracker)
+            batch_mae = self._estimate_missing_similarity(batch_result, tracker=tracker)
+            batch_ranking = self._aggregate_scores(batch_result, batch_mae, document_top_k, tracker=tracker)
             
             # TODO(jlscheerer) Fix this for multiple queries
             results = self._get_document_text(batch_ranking) if return_text else batch_ranking
             rankings[query_id] = results[0]
+            tracker.end_iteration()
 
         return Rankings(data=rankings, index_map=self.collection.index_map(), text=return_text)
