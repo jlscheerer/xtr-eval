@@ -7,6 +7,14 @@ class Rankings:
         }
         self.text = text
 
+    def flatten(self):
+        return {
+            qidx: {
+                entry[0]: entry[1] for entry in result
+            }
+            for qidx, result in self.data.items()
+        }
+
     def __str__(self):
         if len(self.data) == 1:
             return self._build_results_view(self.data[0], text=self.text, prefix="")
