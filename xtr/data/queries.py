@@ -1,26 +1,28 @@
 import abc
-from typing import List
+from typing import Union, List, Dict
 
 class Queries(abc.ABC):
     def __init__(self):
         super().__init__()
 
     @abc.abstractclassmethod
-    def items(self):
+    def __iter__(self):
         ...
 
     @staticmethod
     def cast(queries):
         if isinstance(queries, str):
             return BasicQueries([queries])
-        if isinstance(queries, List):
+        if isinstance(queries, List) or isinstance(queries, Dict):
             return BasicQueries(queries)
         return queries
 
 class BasicQueries(Queries):
-    def __init__(self, queries: List[str]):
+    def __init__(self, queries: Union[Dict[str, str], List[str]]):
         super().__init__()
-        self.queries = queries
+        if isinstance(queries, List):
+            self.queries = {idx: query for idx, query in enumerate(queries)}
+        else: self.queries = queries
 
-    def items(self):
-        return self.queries
+    def __iter__(self):
+        return self.queries.__iter__()

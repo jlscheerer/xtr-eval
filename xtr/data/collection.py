@@ -45,6 +45,11 @@ class BasicCollection(Collection):
         for batch_idx in tqdm(range(0, len(self.documents), batch_size)):
             yield batch_idx, self.documents[batch_idx:batch_idx+batch_size]
 
+class MappedCollection(BasicCollection):
+    def __init__(self, documents: List[str], keys: List[str]):
+        super().__init__(documents=documents)
+        self.keys = keys
+
 class SentenceChunkedCollection(Collection):
     def __init__(self, document):
         self.document = document
