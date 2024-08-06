@@ -13,6 +13,7 @@ import faiss
 from xtr.config import DEFAULT_INDEX_PATH, XTRConfig, XTRIndexType, XTRScaNNIndexConfig, XTRFAISSIndexConfig, XTRBruteForceIndexConfig
 from xtr.modeling.encoder import XTREncoder
 
+# Extracted from: https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
 class BruteForceSearcher(object):
     def __init__(self, all_token_embeds):
         self.all_token_embeds = all_token_embeds
@@ -21,6 +22,14 @@ class BruteForceSearcher(object):
         scores = query_embeds.dot(self.all_token_embeds.T) # Q x D
         top_ids = scores.argsort(axis=1)[:, ::-1][:,:final_num_neighbors] # Q x top_k
         return top_ids, [q_score[q_top_ids] for q_score, q_top_ids in zip(scores, top_ids)] # (Q x top_k, Q x top_k)
+
+# Extracted from: https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
+class FaissSearcher(object):
+    def __init__(self, index):
+        self.index = index
+    def search_batched(self, query_embeds, final_num_neighbors, **kwargs):
+        scores, top_ids = self.index.search(query_embeds, final_num_neighbors)
+        return top_ids, scores
 
 # Adapted from: https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
 class XTR(object):
@@ -111,12 +120,6 @@ class XTR(object):
             index.train(all_token_embeds[:num_tokens])
             index.add(all_token_embeds[:num_tokens])
             self.index = index
-            class FaissSearcher(object):
-                def __init__(self, index):
-                    self.index = index
-                def search_batched(self, query_embeds, final_num_neighbors, **kwargs):
-                    scores, top_ids = self.index.search(query_embeds, final_num_neighbors)
-                    return top_ids, scores
             self.searcher = FaissSearcher(index)
         # Used only for small-scale, exact inference.
         elif self.config.index_type == XTRIndexType.BRUTE_FORCE:
@@ -207,7 +210,8 @@ class XTR(object):
             assert isinstance(config.index_config, XTRFAISSIndexConfig)
             faiss_dir = os.path.join(config.path, "faiss")
             index = faiss.read_index(os.path.join(faiss_dir, "faiss.index"))
-            print(index)
+            xtr_index.index = index
+            xtr_index.searcher = FaissSearcher(xtr_index.index)
         elif config.index_type == XTRIndexType.BRUTE_FORCE:
             assert isinstance(config.index_config, XTRBruteForceIndexConfig)
             bruteforce_dir = os.path.join(config.path, "bruteforce")

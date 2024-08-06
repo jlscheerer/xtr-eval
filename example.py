@@ -39,7 +39,7 @@ for i, chunk in enumerate(chunks):
         break
 print('total # of chunks:', len(chunks))
 
-config = XTRConfig(index_name="test_index", model=XTRModel.BASE_EN, index_config=XTRBruteForceIndexConfig(), override=True)
+config = XTRConfig(index_name="test_index", model=XTRModel.BASE_EN, index_config=XTRFAISSIndexConfig(), override=True)
 xtr = XTR(config)
 xtr.build_index(chunks)
 xtr.save_index()
