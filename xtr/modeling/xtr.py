@@ -11,6 +11,7 @@ import scann
 import faiss
 
 from xtr.config import XTRConfig, XTRIndexType, XTRScaNNIndexConfig, XTRFAISSIndexConfig, XTRBruteForceIndexConfig
+from xtr.data.collection import Collection
 from xtr.modeling.encoder import XTREncoder
 
 # Extracted from: https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
@@ -33,7 +34,7 @@ class FaissSearcher(object):
 
 # Adapted from: https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
 class XTR(object):
-    def __init__(self, config: XTRConfig, documents: List[str]):
+    def __init__(self, config: XTRConfig, collection: Collection):
         self.config = config
 
         if not config.is_tpu():
@@ -58,10 +59,10 @@ class XTR(object):
 
         self.encoder = XTREncoder(self.config)
         if os.path.exists(config.path) and not self.config.override:
-            # TODO(jlscheerer) We could check that the provided documents are compatible with the loaded collection.
+            # TODO(jlscheerer) We could check that the provided collection is compatible with the loaded one.
             self._load_index(config)
         else:
-            self._build_index(documents)
+            self._build_index(collection)
 
     def _get_token_embeddings(self, texts):
         batch_embeds = self.encoder([t.lower() for t in texts])
@@ -85,14 +86,13 @@ class XTR(object):
             offsets = offsets[:-1]
         return flatten_embeddings, offsets
 
-    def _build_index(self, documents):
+    def _build_index(self, collection):
         batch_size = self.config.build_batch_size
 
-        all_token_embeds = np.zeros((len(documents)*self.config.max_seq_len, self.config.token_embed_dim), dtype=np.float32)
+        all_token_embeds = np.zeros((len(collection)*self.config.max_seq_len, self.config.token_embed_dim), dtype=np.float32)
         all_doc_offsets = []
         num_tokens = 0
-        for batch_idx in tqdm(range(0, len(documents), batch_size)):
-            batch_docs = documents[batch_idx:batch_idx+batch_size]
+        for batch_idx, batch_docs in collection.enumerate_batches(batch_size=batch_size):
             batch_embeds, batch_offsets = self._get_flatten_embeddings(batch_docs)
             all_doc_offsets += [num_tokens + offset for offset in batch_offsets]
             num_tokens += len(batch_embeds)
@@ -143,7 +143,7 @@ class XTR(object):
             for tid in range(self.doc_offsets[did+1] - self.doc_offsets[did])
         }
         self.tid2did[-1] = 0
-        self.docs = documents
+        self.collection = collection
         print("Index Ready!", self.searcher)
         self._save_index()
 
@@ -165,7 +165,7 @@ class XTR(object):
         save_pickle(self.config, "config.pickle")
         save_pickle(self.tid2did, "tid2did.pickle")
         save_np(np.array(self.doc_offsets), "doc_offsets.npy")
-        save_pickle(self.docs, "docs.pickle")
+        save_pickle(self.collection, "collection.pickle")
 
         if self.config.index_type ==  XTRIndexType.SCANN:
             assert isinstance(self.config.index_config, XTRScaNNIndexConfig)
@@ -205,12 +205,12 @@ class XTR(object):
             raise AssertionError(f"Invalid index at {path}!")
         tid2did = load_pickle("tid2did.pickle")
         doc_offsets = load_np("doc_offsets.npy")
-        docs = load_pickle("docs.pickle")
+        collection = load_pickle("collection.pickle")
 
         self.config = config
         self.tid2did = tid2did
         self.doc_offsets = doc_offsets
-        self.docs = docs
+        self.collection = collection
 
         if config.index_type ==  XTRIndexType.SCANN:
             assert isinstance(config.index_config, XTRScaNNIndexConfig)
@@ -306,7 +306,7 @@ class XTR(object):
         for ranking in batch_ranking:
             retrieved_docs = []
             for did, score in ranking:
-                retrieved_docs.append((did, score, self.docs[did]))
+                retrieved_docs.append((did, score, self.collection[did]))
             batch_retrieved_docs.append(retrieved_docs)
         return batch_retrieved_docs
 

@@ -1,7 +1,7 @@
-from nltk.tokenize import sent_tokenize
-import re
 
-from xtr.config import XTRConfig, XTRModel, XTRBruteForceIndexConfig, XTRFAISSIndexConfig, XTRScaNNIndexConfig
+from xtr.data.collection import SentenceChunkedCollection
+
+from xtr.config import XTRConfig, XTRModel, XTRFAISSIndexConfig
 from xtr.modeling.xtr import XTR
 
 # Source: https://en.wikipedia.org/wiki/Google
@@ -28,19 +28,8 @@ In May 2011, the number of monthly unique visitors to Google surpassed one billi
 In May 2012, Google acquired Motorola Mobility for $12.5 billion, in its largest acquisition to date.[78][79][80] This purchase was made in part to help Google gain Motorola's considerable patent portfolio on mobile phones and wireless technologies, to help protect Google in its ongoing patent disputes with other companies,[81] mainly Apple and Microsoft,[82] and to allow it to continue to freely offer Android.[83]
 """
 
-sample_doc = re.sub(r'\[\d+\]', '', sample_doc)
-
-# Single-sentence chunks.
-chunks = [chunk.lower() for chunk in sent_tokenize(sample_doc)]
-for i, chunk in enumerate(chunks):
-    print(f'chunk{i}: {chunk[:150]} \n')
-    if i > 3:
-        print('...\n')
-        break
-print('total # of chunks:', len(chunks))
-
 config = XTRConfig(index_name="test_index", model=XTRModel.BASE_EN, index_config=XTRFAISSIndexConfig())
-xtr = XTR(config, documents=chunks)
+xtr = XTR(config, collection=SentenceChunkedCollection(sample_doc))
 
 query = "Who founded google"
 retrieved_docs, metadata = xtr.retrieve_docs(query, document_top_k=3, return_text=True)
