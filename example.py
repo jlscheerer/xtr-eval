@@ -39,9 +39,10 @@ for i, chunk in enumerate(chunks):
         break
 print('total # of chunks:', len(chunks))
 
-config = XTRConfig(model=XTRModel.BASE_EN, index_config=XTRScaNNIndexConfig())
+config = XTRConfig(index_name="test_index", model=XTRModel.BASE_EN, index_config=XTRBruteForceIndexConfig(), override=True)
 xtr = XTR(config)
 xtr.build_index(chunks)
+xtr.save_index()
 
 query = "Who founded google"
 retrieved_docs, metadata = xtr.retrieve_docs(query, document_top_k=3, return_text=True)

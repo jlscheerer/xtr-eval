@@ -1,6 +1,9 @@
+import os
 from abc import ABC
 from dataclasses import dataclass
 from enum import Enum
+
+DEFAULT_INDEX_PATH = "~/data/xtr-eval/indexes"
 
 TOKEN_EMBED_DIM = 128
 QUERY_MAXLEN = 32
@@ -66,8 +69,11 @@ class XTRBruteForceIndexConfig(XTRIndexConfig):
 
 @dataclass
 class XTRConfig:
+    index_name: str
     model: XTRModel
     index_config: XTRIndexConfig
+
+    index_path: str = DEFAULT_INDEX_PATH
 
     token_embed_dim: int = TOKEN_EMBED_DIM
     query_maxlen: int = QUERY_MAXLEN
@@ -78,9 +84,15 @@ class XTRConfig:
     token_top_k: int = 100
     document_top_k: int = 100
 
+    override: bool = False
+
     @property
     def index_type(self):
         return self.index_config.index_type
+
+    @property
+    def path(self):
+        return os.path.expanduser(os.path.join(self.index_path, self.index_name))
 
     def is_multilingual(self):
         return self.model in MULTILINGUAL_MODELS

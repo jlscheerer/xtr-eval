@@ -1,8 +1,11 @@
-import numpy as np
-
+import os
+import json
+import shutil
+import pickle
 from tqdm import tqdm
 from typing import Optional, Union, List
 
+import numpy as np
 import tensorflow as tf
 
 import scann
@@ -110,13 +113,14 @@ class XTR(object):
         # Used only for small-scale, exact inference.
         elif self.config.index_type == XTRIndexType.BRUTE_FORCE:
             assert isinstance(self.config.index_config, XTRBruteForceIndexConfig)
+            self.all_token_embeds = all_token_embeds[:num_tokens]
             class BruteForceSearcher(object):
                 def search_batched(self, query_embeds, final_num_neighbors, **kwargs):
                     scores = query_embeds.dot(all_token_embeds[:num_tokens].T) # Q x D
                     top_ids = scores.argsort(axis=1)[:, ::-1][:,:final_num_neighbors] # Q x top_k
                     return top_ids, [q_score[q_top_ids] for q_score, q_top_ids in zip(scores, top_ids)] # (Q x top_k, Q x top_k)
             self.searcher = BruteForceSearcher()
-        else: raise AssertionError(f"Unsupported XTRIndexType {self.config.index_type}")
+        else: raise AssertionError(f"Unsupported XTRIndexType {self.config.index_type}!")
 
         self.doc_offsets = all_doc_offsets
         self.doc_offsets.append(num_tokens)  # Add final number of tokens.
@@ -128,6 +132,48 @@ class XTR(object):
         self.tid2did[-1] = 0
         self.docs = documents
         print("Index Ready!", self.searcher)
+
+    def save_index(self):
+        if os.path.exists(self.config.path):
+            if self.config.override:
+                shutil.rmtree(self.config.path)
+            else: raise AssertionError(f"Index `{self.config.path}` already exists!")
+        os.makedirs(self.config.path, exist_ok=False)
+
+        self._save_pickle(self.config, "config.pickle")
+        self._save_json(self.tid2did, "tid2did.json")
+        self._save_np(np.array(self.doc_offsets), "doc_offsets.np")
+        self._save_pickle(self.docs, "docs.pickle")
+
+        if self.config.index_type ==  XTRIndexType.SCANN:
+            assert isinstance(self.config.index_config, XTRScaNNIndexConfig)
+            scann_dir = os.path.join(self.config.path, "scann")
+            os.makedirs(scann_dir, exist_ok=False)
+            self.searcher.serialize(scann_dir)
+        elif self.config.index_type ==  XTRIndexType.FAISS:
+            assert isinstance(self.config.index_config, XTRFAISSIndexConfig)
+            pass
+        elif self.config.index_type == XTRIndexType.BRUTE_FORCE:
+            assert isinstance(self.config.index_config, XTRBruteForceIndexConfig)
+            bruteforce_dir = os.path.join(self.config.path, "bruteforce")
+            os.makedirs(bruteforce_dir, exist_ok=False)
+
+            with open(os.path.join(bruteforce_dir, "all_token_embeds.np"), "wb") as file:
+                np.save(file, self.all_token_embeds)
+        else: raise AssertionError(f"Unsupported XTRIndexType {self.config.index_type}!")
+
+    def _save_pickle(self, data, filename):
+        path = os.path.join(self.config.path, filename)
+        with open(path, "wb") as file:
+            pickle.dump(data, file)
+
+    def _save_json(self, data, filename):
+        with open(os.path.join(self.config.path, filename), "w") as file:
+            json.dump(data, file)
+
+    def _save_np(self, data, filename):
+        with open(os.path.join(self.config.path, filename), "wb") as file:
+            np.save(file, data)
 
     def _batch_search_tokens(self, batch_query, token_top_k, leaves_to_search, pre_reorder_num_neighbors):
         all_query_encodings, query_offsets = self._get_flatten_embeddings(batch_query, return_last_offset=True)
