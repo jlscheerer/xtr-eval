@@ -1,5 +1,5 @@
 import os
-from abc import ABC
+import abc
 from dataclasses import dataclass
 from enum import Enum
 
@@ -28,13 +28,17 @@ class XTRIndexType(Enum):
     FAISS = 2
     BRUTE_FORCE = 3
 
-class XTRIndexConfig(ABC):
+class XTRIndexConfig(abc.ABC):
     def __init__(self, type_: XTRIndexType):
         self.type_ = type_
 
     @property
     def index_type(self):
         return self.type_
+
+    @abc.abstractmethod
+    def is_compatible_with(self, other):
+        ...
 
 class XTRScaNNIndexConfig(XTRIndexConfig):
     # Default parameters taken from https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
@@ -53,6 +57,23 @@ class XTRScaNNIndexConfig(XTRIndexConfig):
         self.leaves_to_search = leaves_to_search
         self.pre_reorder_num_neighbors = pre_reorder_num_neighbors
 
+    def is_compatible_with(self, other):
+        if not isinstance(other, XTRScaNNIndexConfig):
+            return False
+        if self.num_neighbors != other.num_neighbors:
+            return False
+        if self.max_num_leaves != other.max_num_leaves:
+            return False
+        if self.num_leaves_to_search != other.num_leaves_to_search:
+            return False
+        if self.max_training_sample_size != other.max_training_sample_size:
+            return False
+        if self.dimensions_per_block != other.dimensions_per_block:
+            return False
+        if self.anisotropic_quantization_threshold != other.anisotropic_quantization_threshold:
+            return False
+        return True
+
 class XTRFAISSIndexConfig(XTRIndexConfig):
     # Default parameters taken from https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
     def __init__(self, *, num_clusters: int = 50, code_size: int = 64, nbits_per_idx: int = 4,
@@ -63,9 +84,25 @@ class XTRFAISSIndexConfig(XTRIndexConfig):
         self.nbits_per_idx = nbits_per_idx
         self.opq_matrix_niter = opq_matrix_niter
 
+    def is_compatible_with(self, other):
+        if not isinstance(other, XTRFAISSIndexConfig):
+            return False
+        if self.num_clusters != other.num_clusters:
+            return False
+        if self.code_size != other.code_size:
+            return False
+        if self.nbits_per_idx != other.nbits_per_idx:
+            return False
+        if self.opq_matrix_niter != other.opq_matrix_niter:
+            return False
+        return True
+
 class XTRBruteForceIndexConfig(XTRIndexConfig):
     def __init__(self):
         super().__init__(XTRIndexType.BRUTE_FORCE)
+
+    def is_compatible_with(self, other):
+        return isinstance(other, XTRBruteForceIndexConfig)
 
 @dataclass
 class XTRConfig:
@@ -84,6 +121,7 @@ class XTRConfig:
     token_top_k: int = 100
     document_top_k: int = 100
 
+    build_batch_size: int = 32
     override: bool = False
 
     @property
@@ -99,3 +137,26 @@ class XTRConfig:
 
     def is_tpu(self):
         return self.model in TPU_MODELS
+
+    def is_compatible_with(self, other):
+        if self.index_name != other.index_name:
+            return False
+        if self.model != other.model:
+            return False
+        if not self.index_config.is_compatible_with(other.index_config):
+            return False
+
+        if self.token_embed_dim != other.token_embed_dim:
+            return False
+        if self.query_maxlen != other.query_maxlen:
+            return False
+        if self.doc_maxlen != other.doc_maxlen:
+            return False
+        if self.max_seq_len != other.max_seq_len:
+            return False
+
+        if self.token_top_k != other.token_top_k:
+            return False
+        if self.document_top_k != other.document_top_k:
+            return False
+        return True

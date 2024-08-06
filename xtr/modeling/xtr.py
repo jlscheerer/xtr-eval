@@ -10,7 +10,7 @@ import tensorflow as tf
 import scann
 import faiss
 
-from xtr.config import DEFAULT_INDEX_PATH, XTRConfig, XTRIndexType, XTRScaNNIndexConfig, XTRFAISSIndexConfig, XTRBruteForceIndexConfig
+from xtr.config import XTRConfig, XTRIndexType, XTRScaNNIndexConfig, XTRFAISSIndexConfig, XTRBruteForceIndexConfig
 from xtr.modeling.encoder import XTREncoder
 
 # Extracted from: https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
@@ -33,7 +33,7 @@ class FaissSearcher(object):
 
 # Adapted from: https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
 class XTR(object):
-    def __init__(self, config: XTRConfig):
+    def __init__(self, config: XTRConfig, documents: List[str]):
         self.config = config
 
         if not config.is_tpu():
@@ -56,7 +56,12 @@ class XTR(object):
             except Exception as e:
                 print(e)
 
-        self.encoder = XTREncoder(config)
+        self.encoder = XTREncoder(self.config)
+        if os.path.exists(config.path) and not self.config.override:
+            # TODO(jlscheerer) We could check that the provided documents are compatible with the loaded collection.
+            self._load_index(config)
+        else:
+            self._build_index(documents)
 
     def _get_token_embeddings(self, texts):
         batch_embeds = self.encoder([t.lower() for t in texts])
@@ -80,7 +85,9 @@ class XTR(object):
             offsets = offsets[:-1]
         return flatten_embeddings, offsets
 
-    def build_index(self, documents, batch_size=32):
+    def _build_index(self, documents):
+        batch_size = self.config.build_batch_size
+
         all_token_embeds = np.zeros((len(documents)*self.config.max_seq_len, self.config.token_embed_dim), dtype=np.float32)
         all_doc_offsets = []
         num_tokens = 0
@@ -138,8 +145,10 @@ class XTR(object):
         self.tid2did[-1] = 0
         self.docs = documents
         print("Index Ready!", self.searcher)
+        self._save_index()
 
-    def save_index(self):
+    def _save_index(self):
+        print(f"Saving index to {self.config.path}.")
         def save_pickle(data, filename):
             with open(os.path.join(self.config.path, filename), "wb") as file:
                 pickle.dump(data, file)
@@ -178,9 +187,9 @@ class XTR(object):
             np.save(os.path.join(bruteforce_dir, "all_token_embeds.npy"), self.all_token_embeds)
         else: raise AssertionError(f"Unsupported XTRIndexType {self.config.index_type}!")
 
-    @staticmethod
-    def load_index(index_name, *, index_path=DEFAULT_INDEX_PATH):
-        path = os.path.expanduser(os.path.join(index_path, index_name))
+    def _load_index(self, load_config: XTRConfig):
+        print(f"Loading existing index from {load_config.path}.")
+        path = load_config.path
         if not os.path.exists(path):
             raise AssertionError(f"Index does not exist {path}!")
         
@@ -192,34 +201,35 @@ class XTR(object):
             return np.load(os.path.join(path, filename))
 
         config = load_pickle("config.pickle")
+        if load_config is not None and not load_config.is_compatible_with(config):
+            raise AssertionError(f"Invalid index at {path}!")
         tid2did = load_pickle("tid2did.pickle")
         doc_offsets = load_np("doc_offsets.npy")
         docs = load_pickle("docs.pickle")
 
-        xtr_index = XTR(config)
-        xtr_index.tid2did = tid2did
-        xtr_index.doc_offsets = doc_offsets
-        xtr_index.docs = docs
+        self.config = config
+        self.tid2did = tid2did
+        self.doc_offsets = doc_offsets
+        self.docs = docs
 
         if config.index_type ==  XTRIndexType.SCANN:
             assert isinstance(config.index_config, XTRScaNNIndexConfig)
             scann_dir = os.path.join(config.path, "scann")
             searcher = scann.scann_ops_pybind.load_searcher(scann_dir)
-            xtr_index.searcher = searcher
+            self.searcher = searcher
         elif config.index_type ==  XTRIndexType.FAISS:
             assert isinstance(config.index_config, XTRFAISSIndexConfig)
             faiss_dir = os.path.join(config.path, "faiss")
             index = faiss.read_index(os.path.join(faiss_dir, "faiss.index"))
-            xtr_index.index = index
-            xtr_index.searcher = FaissSearcher(xtr_index.index)
+            self.index = index
+            self.searcher = FaissSearcher(self.index)
         elif config.index_type == XTRIndexType.BRUTE_FORCE:
             assert isinstance(config.index_config, XTRBruteForceIndexConfig)
             bruteforce_dir = os.path.join(config.path, "bruteforce")
             all_token_embeds = np.load(os.path.join(bruteforce_dir, "all_token_embeds.npy"))
-            xtr_index.all_token_embeds = all_token_embeds
-            xtr_index.searcher = BruteForceSearcher(xtr_index.all_token_embeds)
+            self.all_token_embeds = all_token_embeds
+            self.searcher = BruteForceSearcher(self.all_token_embeds)
         else: raise AssertionError(f"Unsupported XTRIndexType {config.index_type}!")
-        return xtr_index
 
     def _batch_search_tokens(self, batch_query, token_top_k, leaves_to_search, pre_reorder_num_neighbors):
         all_query_encodings, query_offsets = self._get_flatten_embeddings(batch_query, return_last_offset=True)
