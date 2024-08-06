@@ -8,7 +8,7 @@ import tensorflow as tf
 import scann
 import faiss
 
-from xtr.config import XTRConfig, XTRIndexType
+from xtr.config import XTRConfig, XTRIndexType, XTRScaNNIndexConfig, XTRFAISSIndexConfig, XTRBruteForceIndexConfig
 from xtr.modeling.encoder import XTREncoder
 
 # Adapted from: https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
@@ -49,7 +49,7 @@ class XTR(object):
         flatten_embeddings = None
         num_tokens = 0
         offsets = [0]
-        for batch_id, (embeddings, length) in enumerate(zip(batch_embeddings, batch_lengths)):
+        for _, (embeddings, length) in enumerate(zip(batch_embeddings, batch_lengths)):
             if flatten_embeddings is not None:
                 flatten_embeddings = np.append(flatten_embeddings, embeddings[:int(length)], axis=0)
             else:
@@ -74,23 +74,29 @@ class XTR(object):
 
         # Use scann.scann_ops.build() to instead create a TensorFlow-compatible searcher.
         if self.config.index_type ==  XTRIndexType.SCANN:
-            num_neighbors = 10
-            max_num_leaves = 2000
-            num_leaves_to_search = 100
-            max_training_sample_size = 250000
-            dimensions_per_block = 1
-            anisotropic_quantization_threshold = 0.1
+            assert isinstance(self.config.index_config, XTRScaNNIndexConfig)
+            num_neighbors = self.config.index_config.num_neighbors
+            max_num_leaves = self.config.index_config.max_num_leaves
+            num_leaves_to_search = self.config.index_config.num_leaves_to_search
+            max_training_sample_size = self.config.index_config.max_training_sample_size
+            dimensions_per_block = self.config.index_config.dimensions_per_block
+            anisotropic_quantization_threshold = self.config.index_config.anisotropic_quantization_threshold
+
             self.searcher = scann.scann_ops_pybind.builder(all_token_embeds[:num_tokens], num_neighbors, "dot_product").tree(
                 num_leaves=min(max_num_leaves, num_tokens), num_leaves_to_search=num_leaves_to_search, training_sample_size=min(max_training_sample_size, num_tokens)).score_ah(
                 dimensions_per_block, anisotropic_quantization_threshold=anisotropic_quantization_threshold).build()
         elif self.config.index_type ==  XTRIndexType.FAISS:
-            ds = 128
-            num_clusters = 50
-            code_size = 64
+            assert isinstance(self.config.index_config, XTRFAISSIndexConfig)
+            num_clusters = self.config.index_config.num_clusters
+            code_size = self.config.index_config.code_size
+            nbits_per_idx = self.config.index_config.nbits_per_idx
+            opq_matrix_niter = self.config.index_config.opq_matrix_niter
+
+            ds = self.config.token_embed_dim
             quantizer = faiss.IndexFlatIP(ds)
             opq_matrix = faiss.OPQMatrix(ds, code_size)
-            opq_matrix.niter = 10
-            sub_index = faiss.IndexIVFPQ(quantizer, ds, num_clusters, code_size, 4, faiss.METRIC_INNER_PRODUCT)
+            opq_matrix.niter = opq_matrix_niter
+            sub_index = faiss.IndexIVFPQ(quantizer, ds, num_clusters, code_size, nbits_per_idx, faiss.METRIC_INNER_PRODUCT)
             index = faiss.IndexPreTransform(opq_matrix, sub_index)
             index.train(all_token_embeds[:num_tokens])
             index.add(all_token_embeds[:num_tokens])
@@ -102,14 +108,15 @@ class XTR(object):
                     return top_ids, scores
             self.searcher = FaissSearcher(index)
         # Used only for small-scale, exact inference.
-        else:
-            assert self.config.index_type == XTRIndexType.BRUTE_FORCE
+        elif self.config.index_type == XTRIndexType.BRUTE_FORCE:
+            assert isinstance(self.config.index_config, XTRBruteForceIndexConfig)
             class BruteForceSearcher(object):
                 def search_batched(self, query_embeds, final_num_neighbors, **kwargs):
                     scores = query_embeds.dot(all_token_embeds[:num_tokens].T) # Q x D
                     top_ids = scores.argsort(axis=1)[:, ::-1][:,:final_num_neighbors] # Q x top_k
                     return top_ids, [q_score[q_top_ids] for q_score, q_top_ids in zip(scores, top_ids)] # (Q x top_k, Q x top_k)
             self.searcher = BruteForceSearcher()
+        else: raise AssertionError(f"Unsupported XTRIndexType {self.config.index_type}")
 
         self.doc_offsets = all_doc_offsets
         self.doc_offsets.append(num_tokens)  # Add final number of tokens.

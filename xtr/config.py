@@ -34,12 +34,27 @@ class XTRIndexConfig(ABC):
         return self.type_
 
 class XTRScaNNIndexConfig(XTRIndexConfig):
-    def __init__(self):
+    # Default parameters taken from https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
+    def __init__(self, *, num_neighbors: int = 10, max_num_leaves: int = 2000, num_leaves_to_search: int = 100,
+                 max_training_sample_size: int = 250000, dimensions_per_block: int = 1,
+                 anisotropic_quantization_threshold: float = 0.1):
         super().__init__(XTRIndexType.SCANN)
+        self.num_neighbors = num_neighbors
+        self.max_num_leaves = max_num_leaves
+        self.num_leaves_to_search = num_leaves_to_search
+        self.max_training_sample_size = max_training_sample_size
+        self.dimensions_per_block = dimensions_per_block
+        self.anisotropic_quantization_threshold = anisotropic_quantization_threshold
 
 class XTRFAISSIndexConfig(XTRIndexConfig):
-    def __init__(self):
+    # Default parameters taken from https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
+    def __init__(self, *; num_clusters: int = 50, code_size: int = 64, nbits_per_idx: int = 4,
+                 opq_matrix_niter: int = 10):
         super().__init__(XTRIndexType.FAISS)
+        self.num_clusters = num_clusters
+        self.code_size = code_size
+        self.nbits_per_idx = nbits_per_idx
+        self.opq_matrix_niter = opq_matrix_niter
 
 class XTRBruteForceIndexConfig(XTRIndexConfig):
     def __init__(self):
