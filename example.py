@@ -1,7 +1,7 @@
 from nltk.tokenize import sent_tokenize
 import re
 
-from xtr.config import XTRConfig, XTRModel, XTRBruteForceIndexConfig, XTRScaNNIndexConfig
+from xtr.config import XTRConfig, XTRModel, XTRBruteForceIndexConfig, XTRFAISSIndexConfig, XTRScaNNIndexConfig
 from xtr.modeling.xtr import XTR
 
 # Source: https://en.wikipedia.org/wiki/Google

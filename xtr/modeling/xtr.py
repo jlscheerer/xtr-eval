@@ -11,7 +11,7 @@ import tensorflow as tf
 import scann
 import faiss
 
-from xtr.config import XTRConfig, XTRIndexType, XTRScaNNIndexConfig, XTRFAISSIndexConfig, XTRBruteForceIndexConfig
+from xtr.config import DEFAULT_INDEX_PATH, XTRConfig, XTRIndexType, XTRScaNNIndexConfig, XTRFAISSIndexConfig, XTRBruteForceIndexConfig
 from xtr.modeling.encoder import XTREncoder
 
 # Adapted from: https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
@@ -20,7 +20,6 @@ class XTR(object):
         self.config = config
 
         if not config.is_tpu():
-            assert config.index_type == XTRIndexType.SCANN or config.index_type == XTRIndexType.BRUTE_FORCE
             physical_devices = tf.config.list_physical_devices("GPU")
             try:
                 for gpu in physical_devices:
@@ -103,6 +102,7 @@ class XTR(object):
             index = faiss.IndexPreTransform(opq_matrix, sub_index)
             index.train(all_token_embeds[:num_tokens])
             index.add(all_token_embeds[:num_tokens])
+            self.index = index
             class FaissSearcher(object):
                 def __init__(self, index):
                     self.index = index
@@ -134,46 +134,84 @@ class XTR(object):
         print("Index Ready!", self.searcher)
 
     def save_index(self):
+        def save_pickle(data, filename):
+            with open(os.path.join(self.config.path, filename), "wb") as file:
+                pickle.dump(data, file)
+
+        def save_np(data, filename):
+            np.save(os.path.join(self.config.path, filename), data)
+
         if os.path.exists(self.config.path):
             if self.config.override:
                 shutil.rmtree(self.config.path)
             else: raise AssertionError(f"Index `{self.config.path}` already exists!")
         os.makedirs(self.config.path, exist_ok=False)
 
-        self._save_pickle(self.config, "config.pickle")
-        self._save_json(self.tid2did, "tid2did.json")
-        self._save_np(np.array(self.doc_offsets), "doc_offsets.np")
-        self._save_pickle(self.docs, "docs.pickle")
+        save_pickle(self.config, "config.pickle")
+        save_pickle(self.tid2did, "tid2did.pickle")
+        save_np(np.array(self.doc_offsets), "doc_offsets.npy")
+        save_pickle(self.docs, "docs.pickle")
 
         if self.config.index_type ==  XTRIndexType.SCANN:
             assert isinstance(self.config.index_config, XTRScaNNIndexConfig)
             scann_dir = os.path.join(self.config.path, "scann")
             os.makedirs(scann_dir, exist_ok=False)
+            
             self.searcher.serialize(scann_dir)
         elif self.config.index_type ==  XTRIndexType.FAISS:
             assert isinstance(self.config.index_config, XTRFAISSIndexConfig)
-            pass
+            faiss_dir = os.path.join(self.config.path, "faiss")
+            os.makedirs(faiss_dir, exist_ok=False)
+
+            faiss.write_index(self.index, os.path.join(faiss_dir, "faiss.index"))
         elif self.config.index_type == XTRIndexType.BRUTE_FORCE:
             assert isinstance(self.config.index_config, XTRBruteForceIndexConfig)
             bruteforce_dir = os.path.join(self.config.path, "bruteforce")
             os.makedirs(bruteforce_dir, exist_ok=False)
 
-            with open(os.path.join(bruteforce_dir, "all_token_embeds.np"), "wb") as file:
-                np.save(file, self.all_token_embeds)
+            np.save(os.path.join(bruteforce_dir, "all_token_embeds.npy"), self.all_token_embeds)
         else: raise AssertionError(f"Unsupported XTRIndexType {self.config.index_type}!")
 
-    def _save_pickle(self, data, filename):
-        path = os.path.join(self.config.path, filename)
-        with open(path, "wb") as file:
-            pickle.dump(data, file)
+    @staticmethod
+    def load_index(index_name, *, index_path=DEFAULT_INDEX_PATH):
+        path = os.path.expanduser(os.path.join(index_path, index_name))
+        if not os.path.exists(path):
+            raise AssertionError(f"Index does not exist {path}!")
+        
+        def load_pickle(filename):
+            with open(os.path.join(path, filename), "rb") as file:
+                return pickle.load(file)
 
-    def _save_json(self, data, filename):
-        with open(os.path.join(self.config.path, filename), "w") as file:
-            json.dump(data, file)
+        def load_np(filename):
+            return np.load(os.path.join(path, filename))
 
-    def _save_np(self, data, filename):
-        with open(os.path.join(self.config.path, filename), "wb") as file:
-            np.save(file, data)
+        config = load_pickle("config.pickle")
+        tid2did = load_pickle("tid2did.pickle")
+        doc_offsets = load_np("doc_offsets.npy")
+        docs = load_pickle("docs.pickle")
+
+        xtr_index = XTR(config)
+        xtr_index.tid2did = tid2did
+        xtr_index.doc_offsets = doc_offsets
+        xtr_index.docs = docs
+
+        if config.index_type ==  XTRIndexType.SCANN:
+            assert isinstance(config.index_config, XTRScaNNIndexConfig)
+            scann_dir = os.path.join(config.path, "scann")
+            searcher = scann.scann_ops_pybind.load_searcher(scann_dir)
+            xtr_index.searcher = searcher
+        elif config.index_type ==  XTRIndexType.FAISS:
+            assert isinstance(config.index_config, XTRFAISSIndexConfig)
+            faiss_dir = os.path.join(config.path, "faiss")
+            index = faiss.read_index(os.path.join(faiss_dir, "faiss.index"))
+            print(index)
+        elif config.index_type == XTRIndexType.BRUTE_FORCE:
+            assert isinstance(config.index_config, XTRBruteForceIndexConfig)
+            bruteforce_dir = os.path.join(config.path, "bruteforce")
+            all_token_embeds = np.load(os.path.join(bruteforce_dir, "all_token_embeds.npy"))
+            print(all_token_embeds)
+        else: raise AssertionError(f"Unsupported XTRIndexType {config.index_type}!")
+        return xtr_index
 
     def _batch_search_tokens(self, batch_query, token_top_k, leaves_to_search, pre_reorder_num_neighbors):
         all_query_encodings, query_offsets = self._get_flatten_embeddings(batch_query, return_last_offset=True)
