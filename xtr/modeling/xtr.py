@@ -74,11 +74,16 @@ class XTR(object):
 
         # Use scann.scann_ops.build() to instead create a TensorFlow-compatible searcher.
         if self.config.index_type ==  XTRIndexType.SCANN:
-            self.searcher = scann.scann_ops_pybind.builder(all_token_embeds[:num_tokens], 10, "dot_product").tree(
-                num_leaves=min(2000, num_tokens), num_leaves_to_search=100, training_sample_size=min(250000, num_tokens)).score_ah(
-                1, anisotropic_quantization_threshold=0.1).build()
+            num_neighbors = 10
+            max_num_leaves = 2000
+            num_leaves_to_search = 100
+            max_training_sample_size = 250000
+            dimensions_per_block = 1
+            anisotropic_quantization_threshold = 0.1
+            self.searcher = scann.scann_ops_pybind.builder(all_token_embeds[:num_tokens], num_neighbors, "dot_product").tree(
+                num_leaves=min(max_num_leaves, num_tokens), num_leaves_to_search=num_leaves_to_search, training_sample_size=min(max_training_sample_size, num_tokens)).score_ah(
+                dimensions_per_block, anisotropic_quantization_threshold=anisotropic_quantization_threshold).build()
         elif self.config.index_type ==  XTRIndexType.FAISS:
-            # TODO(jlscheerer) Assert that we are using faiss-gpu!
             ds = 128
             num_clusters = 50
             code_size = 64

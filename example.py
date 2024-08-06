@@ -1,7 +1,7 @@
 from nltk.tokenize import sent_tokenize
 import re
 
-from xtr.config import XTRConfig, XTRModel, XTRBruteForceIndexConfig
+from xtr.config import XTRConfig, XTRModel, XTRBruteForceIndexConfig, XTRScaNNIndexConfig
 from xtr.modeling.xtr import XTR
 
 # Source: https://en.wikipedia.org/wiki/Google
@@ -39,7 +39,7 @@ for i, chunk in enumerate(chunks):
         break
 print('total # of chunks:', len(chunks))
 
-config = XTRConfig(model=XTRModel.BASE_EN, index_config=XTRBruteForceIndexConfig())
+config = XTRConfig(model=XTRModel.BASE_EN, index_config=XTRScaNNIndexConfig())
 xtr = XTR(config)
 xtr.build_index(chunks)
 
