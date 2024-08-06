@@ -1,8 +1,7 @@
 import os
 import shutil
 import pickle
-from tqdm import tqdm
-from typing import Optional, Union, List
+from typing import Optional
 
 import numpy as np
 import tensorflow as tf
@@ -12,7 +11,15 @@ import faiss
 
 from xtr.config import XTRConfig, XTRIndexType, XTRScaNNIndexConfig, XTRFAISSIndexConfig, XTRBruteForceIndexConfig
 from xtr.data.collection import Collection
+from xtr.data.queries import Queries
 from xtr.modeling.encoder import XTREncoder
+
+# TODO(jlscheerer) Incorporate the following:
+"""
+if INDEX_TYPE == 'faiss':
+    sub_index = faiss.extract_index_ivf(xtr.searcher.index)
+    sub_index.nprobe = 4
+"""
 
 # Extracted from: https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
 class BruteForceSearcher(object):
@@ -62,7 +69,7 @@ class XTR(object):
             # TODO(jlscheerer) We could check that the provided collection is compatible with the loaded one.
             self._load_index(config)
         else:
-            self._build_index(collection)
+            self._build_index(Collection.cast(collection))
 
     def _get_token_embeddings(self, texts):
         batch_embeds = self.encoder([t.lower() for t in texts])
@@ -232,7 +239,7 @@ class XTR(object):
         else: raise AssertionError(f"Unsupported XTRIndexType {config.index_type}!")
 
     def _batch_search_tokens(self, batch_query, token_top_k, leaves_to_search, pre_reorder_num_neighbors):
-        all_query_encodings, query_offsets = self._get_flatten_embeddings(batch_query, return_last_offset=True)
+        all_query_encodings, query_offsets = self._get_flatten_embeddings(batch_query.items(), return_last_offset=True)
         all_neighbors, all_scores = self.searcher.search_batched(
             all_query_encodings, final_num_neighbors=token_top_k, leaves_to_search=leaves_to_search, pre_reorder_num_neighbors=pre_reorder_num_neighbors
         )
@@ -312,16 +319,13 @@ class XTR(object):
 
     def retrieve_docs(
         self,
-        query: Union[str, List[str]],
+        query,
         token_top_k: Optional[int] = None,
         document_top_k: Optional[int] = None,
         return_text: bool = False,
     ):
         """Runs XTR retrieval for a query."""
-        if isinstance(query, List):
-            batch_query = query
-        else:
-            batch_query = [query]
+        batch_query = Queries.cast(query)
         token_top_k = token_top_k or self.config.token_top_k
         document_top_k = document_top_k or self.config.document_top_k
         if self.config.index_type ==  XTRIndexType.SCANN:
