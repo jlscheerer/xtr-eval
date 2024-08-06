@@ -1,5 +1,4 @@
 import os
-import json
 import shutil
 import pickle
 from tqdm import tqdm
@@ -13,6 +12,15 @@ import faiss
 
 from xtr.config import DEFAULT_INDEX_PATH, XTRConfig, XTRIndexType, XTRScaNNIndexConfig, XTRFAISSIndexConfig, XTRBruteForceIndexConfig
 from xtr.modeling.encoder import XTREncoder
+
+class BruteForceSearcher(object):
+    def __init__(self, all_token_embeds):
+        self.all_token_embeds = all_token_embeds
+
+    def search_batched(self, query_embeds, final_num_neighbors, **kwargs):
+        scores = query_embeds.dot(self.all_token_embeds.T) # Q x D
+        top_ids = scores.argsort(axis=1)[:, ::-1][:,:final_num_neighbors] # Q x top_k
+        return top_ids, [q_score[q_top_ids] for q_score, q_top_ids in zip(scores, top_ids)] # (Q x top_k, Q x top_k)
 
 # Adapted from: https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
 class XTR(object):
@@ -114,12 +122,7 @@ class XTR(object):
         elif self.config.index_type == XTRIndexType.BRUTE_FORCE:
             assert isinstance(self.config.index_config, XTRBruteForceIndexConfig)
             self.all_token_embeds = all_token_embeds[:num_tokens]
-            class BruteForceSearcher(object):
-                def search_batched(self, query_embeds, final_num_neighbors, **kwargs):
-                    scores = query_embeds.dot(all_token_embeds[:num_tokens].T) # Q x D
-                    top_ids = scores.argsort(axis=1)[:, ::-1][:,:final_num_neighbors] # Q x top_k
-                    return top_ids, [q_score[q_top_ids] for q_score, q_top_ids in zip(scores, top_ids)] # (Q x top_k, Q x top_k)
-            self.searcher = BruteForceSearcher()
+            self.searcher = BruteForceSearcher(self.all_token_embeds)
         else: raise AssertionError(f"Unsupported XTRIndexType {self.config.index_type}!")
 
         self.doc_offsets = all_doc_offsets
@@ -209,7 +212,8 @@ class XTR(object):
             assert isinstance(config.index_config, XTRBruteForceIndexConfig)
             bruteforce_dir = os.path.join(config.path, "bruteforce")
             all_token_embeds = np.load(os.path.join(bruteforce_dir, "all_token_embeds.npy"))
-            print(all_token_embeds)
+            xtr_index.all_token_embeds = all_token_embeds
+            xtr_index.searcher = BruteForceSearcher(xtr_index.all_token_embeds)
         else: raise AssertionError(f"Unsupported XTRIndexType {config.index_type}!")
         return xtr_index
 
