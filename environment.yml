@@ -20,3 +20,4 @@ dependencies:
     - kagglehub
     - huggingface_hub
     - matplotlib
+    - jsonlines

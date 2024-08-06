@@ -12,7 +12,7 @@ from xtr.data.queries import Queries
 from xtr.data.rankings import Rankings
 from xtr.data.qrels import Qrels
 
-BEIR_DATASET_PATH = "/lfs/1/scheerer/datasets/beir/datasets/"
+BEIR_COLLECTION_PATH = "/lfs/1/scheerer/datasets/beir/datasets/"
 
 class BEIR(Enum):
     SCIFACT = 1
@@ -27,7 +27,7 @@ def load_beir(dataset: BEIR, datasplit: str):
         BEIR.SCIFACT: "scifact",
         BEIR.NFCORPUS: "nfcorpus"
     }[dataset]
-    dataset_path = os.path.join(BEIR_DATASET_PATH, dataset_name)
+    dataset_path = os.path.join(BEIR_COLLECTION_PATH, dataset_name)
 
     corpus, queries, qrels = GenericDataLoader(dataset_path).load(split=datasplit)
     
