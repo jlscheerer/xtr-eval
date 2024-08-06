@@ -12,6 +12,7 @@ import faiss
 from xtr.config import XTRConfig, XTRIndexType, XTRScaNNIndexConfig, XTRFAISSIndexConfig, XTRBruteForceIndexConfig
 from xtr.data.collection import Collection
 from xtr.data.queries import Queries
+from xtr.data.rankings import Rankings
 from xtr.modeling.encoder import XTREncoder
 
 # TODO(jlscheerer) Incorporate the following:
@@ -338,7 +339,4 @@ class XTR(object):
         batch_result = self._batch_search_tokens(batch_query, token_top_k=token_top_k, leaves_to_search=leaves_to_search, pre_reorder_num_neighbors=pre_reorder_num_neighbors)
         batch_mae = self._estimate_missing_similarity(batch_result)
         batch_ranking = self._aggregate_scores(batch_result, batch_mae, document_top_k)
-        if return_text:
-            return self._get_document_text(batch_ranking), batch_result
-        else:
-            return batch_ranking, batch_result
+        return Rankings(self._get_document_text(batch_ranking) if return_text else batch_ranking)

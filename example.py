@@ -32,8 +32,7 @@ config = XTRConfig(index_name="test_index", model=XTRModel.BASE_EN, index_config
 xtr = XTR(config, collection=SentenceChunkedCollection(sample_doc))
 
 query = "Who founded google"
-retrieved_docs, metadata = xtr.retrieve_docs(query, document_top_k=3, return_text=True)
+rankings = xtr.retrieve_docs(query, document_top_k=3, return_text=False)
 
 print(f"\nQuery: {query}")
-for rank, (did, score, doc) in enumerate(retrieved_docs[0]):
-    print(f"[{rank}] doc={did} ({score:.3f}): {doc}")
+print(rankings)
