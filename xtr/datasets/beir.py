@@ -1,5 +1,6 @@
 import os
-from enum import Enum, auto
+from dataclasses import dataclass
+from enum import Enum
 from tqdm import tqdm
 
 from beir import util
@@ -7,6 +8,7 @@ from beir.datasets.data_loader import GenericDataLoader
 
 import pytrec_eval
 
+from xtr.datasets.dataset import Dataset, Datasplit
 from xtr.data.collection import MappedCollection
 from xtr.data.queries import Queries
 from xtr.data.rankings import Rankings
@@ -16,20 +18,34 @@ BEIR_COLLECTION_PATH = "/lfs/1/scheerer/datasets/beir/datasets/"
 
 # https://github.com/beir-cellar/beir?tab=readme-ov-file#beers-available-datasets
 class BEIR(Enum):
-    NFCORPUS = auto()
-    FIQA_2018 = auto()
-    SCIDOCS = auto()
-    SCIFACT = auto()
+    NFCORPUS = "nfcorpus"
+    FIQA_2018 = "fiqa"
+    SCIDOCS = "scidocs"
+    SCIFACT = "scifact"
+
+@dataclass
+class BEIRDataset(Dataset):
+    dataset: BEIR
+    datasplit: Datasplit
+
+    def __init__(self, dataset: BEIR, datasplit: Datasplit):
+        super().__init__()
+        self.dataset = dataset
+        self.datasplit = datasplit
+
+    def _name(self):
+        return f"{self.dataset}.split={self.datasplit}"
+
+    def _load(self):
+        return load_beir(self.dataset, self.datasplit)
+
+    def _eval(self, expected, rankings):
+        return eval_metrics_beir(expected, rankings)
 
 def load_beir(dataset: BEIR, datasplit: str, create_if_not_exists: bool=True):
     assert datasplit in ["train", "test", "dev"]
     
-    dataset_name = {
-        BEIR.SCIFACT: "scifact",
-        BEIR.NFCORPUS: "nfcorpus",
-        BEIR.SCIDOCS: "scidocs",
-        BEIR.FIQA_2018: "fiqa",
-    }[dataset]
+    dataset_name = dataset.value
     dataset_path = os.path.join(BEIR_COLLECTION_PATH, dataset_name)
 
     if not os.path.exists(dataset_path):

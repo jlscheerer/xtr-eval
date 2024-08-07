@@ -1,13 +1,49 @@
 import os
 from collections import OrderedDict
+from dataclasses import dataclass
+from enum import Enum
+from typing import Literal, Union
 
 import jsonlines
 
+from xtr.datasets.dataset import Dataset, Datasplit
 from xtr.data.collection import Collection
 from xtr.data.queries import Queries
 from xtr.data.qas import Qas
 
 LOTTE_COLLECTION_PATH = "/lfs/1/scheerer/datasets/lotte/lotte/"
+
+# https://downloads.cs.stanford.edu/nlp/data/colbert/colbertv2/lotte.tar.gz
+class LoTTE(Enum):
+    WRITING = "writing"
+    RECREATION = "recreation"
+    SCIENCE = "science"
+    TECHNOLOGY = "technology"
+    LIFESTYLE = "lifestyle"
+    POOLED = "pooled"
+
+LoTTEType = Union[Literal["search"], Literal["forum"]]
+
+@dataclass
+class LoTTEDataset(Dataset):
+    dataset: LoTTE
+    datasplit: Datasplit
+    type_: LoTTEType = "search"
+
+    def __init__(self, dataset: LoTTE, datasplit: Datasplit, type_: LoTTEType = "search"):
+        super().__init__()
+        self.dataset = dataset
+        self.datasplit = datasplit
+        self.type_ = type_
+
+    def _name(self):
+        return f"{self.dataset}.{self.type_}.split={self.datasplit}"
+
+    def _load(self):
+        return load_lotte(self.dataset.value, self.datasplit, self.type_)
+
+    def _eval(self, expected, rankings):
+        raise AssertionError
 
 def _load_lotte_collection(collection_path):
     collection = []

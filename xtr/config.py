@@ -33,8 +33,15 @@ class XTRIndexConfig(abc.ABC):
         self.type_ = type_
 
     @property
+    def name(self):
+        return self._name()
+
+    @property
     def index_type(self):
         return self.type_
+
+    def _name(self):
+        return str(self.type_)
 
     @abc.abstractmethod
     def is_compatible_with(self, other):
