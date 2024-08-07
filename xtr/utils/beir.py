@@ -1,5 +1,5 @@
 import os
-from enum import Enum
+from enum import Enum, auto
 from tqdm import tqdm
 
 from beir import util
@@ -14,20 +14,30 @@ from xtr.data.qrels import Qrels
 
 BEIR_COLLECTION_PATH = "/lfs/1/scheerer/datasets/beir/datasets/"
 
+# https://github.com/beir-cellar/beir?tab=readme-ov-file#beers-available-datasets
 class BEIR(Enum):
-    SCIFACT = 1
-    NFCORPUS = 2
+    NFCORPUS = auto()
+    FIQA_2018 = auto()
+    SCIDOCS = auto()
+    SCIFACT = auto()
 
-def load_beir(dataset: BEIR, datasplit: str):
+def load_beir(dataset: BEIR, datasplit: str, create_if_not_exists: bool=True):
     assert datasplit in ["train", "test", "dev"]
     
-    # TODO(jlscheerer) Add a "download if required" option.
-
     dataset_name = {
         BEIR.SCIFACT: "scifact",
-        BEIR.NFCORPUS: "nfcorpus"
+        BEIR.NFCORPUS: "nfcorpus",
+        BEIR.SCIDOCS: "scidocs",
+        BEIR.FIQA_2018: "fiqa",
     }[dataset]
     dataset_path = os.path.join(BEIR_COLLECTION_PATH, dataset_name)
+
+    if not os.path.exists(dataset_path):
+        if not create_if_not_exists:
+            raise AssertionError(f"Could not load BEIR dataset {dataset}!")
+        url = f"https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{dataset_name}.zip"
+        util.download_and_unzip(url, BEIR_COLLECTION_PATH)
+        return
 
     corpus, queries, qrels = GenericDataLoader(dataset_path).load(split=datasplit)
     
