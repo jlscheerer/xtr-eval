@@ -21,3 +21,4 @@ dependencies:
     - huggingface_hub
     - matplotlib
     - jsonlines
+    - jupyter

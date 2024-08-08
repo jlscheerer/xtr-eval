@@ -21,7 +21,7 @@ class XTREncoder(torch.nn.Module):
     Wrapper around transformers.AutoModel providing an interface compatible with DeepMind's implementation.
     In particular, this module incorporates XTR's final linear layer.
     """
-    def __init__(self, config: XTRConfig):
+    def __init__(self, config: XTRConfig, device):
         super().__init__()
 
         assert config.model == XTRModel.BASE_EN
@@ -42,9 +42,7 @@ class XTREncoder(torch.nn.Module):
 
         self.tokenizer = XTRTokenizer(config)
 
-        # TODO(jlscheerer) We should change the device here.
-        self.device = torch.device("cuda")
-
+        self.device = device
         self.tokenizer.to(self.device)
         self.encoder.to(self.device)
         self.linear.to(self.device)

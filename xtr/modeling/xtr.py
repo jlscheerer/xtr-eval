@@ -4,6 +4,7 @@ import pickle
 from typing import Optional
 from tqdm import tqdm
 
+import torch
 import numpy as np
 import tensorflow as tf
 
@@ -44,19 +45,20 @@ class FaissSearcher(object):
 
 # Adapted from: https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
 class XTR(object):
-    def __init__(self, config: XTRConfig, collection: Collection):
+    def __init__(self, config: XTRConfig, collection: Collection, device=torch.device("cuda")):
         self.config = config
 
         if not config.is_tpu():
-            physical_devices = tf.config.list_physical_devices("GPU")
-            try:
-                for gpu in physical_devices:
-                    tf.config.experimental.set_memory_growth(gpu, True)
-                    print(f"set_memory_growth = True for {gpu}")
-                if len(physical_devices) == 0:
-                    print("Loading XTR on CPU.")
-            except Exception as e:
-                print(e)
+            if device != torch.device("cpu"):
+                physical_devices = tf.config.list_physical_devices("GPU")
+                try:
+                    for gpu in physical_devices:
+                        tf.config.experimental.set_memory_growth(gpu, True)
+                        print(f"set_memory_growth = True for {gpu}")
+                    if len(physical_devices) == 0:
+                        print("Loading XTR on CPU.")
+                except Exception as e:
+                    print(e)
         else:
             assert config.index_type == XTRIndexType.FAISS or config.index_type == XTRIndexType.BRUTE_FORCE
             try:
@@ -67,7 +69,7 @@ class XTR(object):
             except Exception as e:
                 print(e)
 
-        self.encoder = XTREncoder(self.config)
+        self.encoder = XTREncoder(self.config, device=device)
         if os.path.exists(config.path) and not self.config.override:
             # TODO(jlscheerer) We could check that the provided collection is compatible with the loaded one.
             self._load_index(config)
