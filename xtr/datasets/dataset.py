@@ -37,7 +37,7 @@ class Dataset(abc.ABC):
         if self._expected is None:
             self._collection, self._queries, self._expected = self._load()
         assert self._expected is not None
-        self._eval(self._expected, rankings)
+        return self._eval(self._expected, rankings)
 
     @abc.abstractclassmethod
     def _name(self):

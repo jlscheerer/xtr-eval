@@ -1,4 +1,5 @@
 import os
+import sys
 from collections import OrderedDict
 from dataclasses import dataclass
 from enum import Enum
@@ -43,9 +44,25 @@ class LoTTEDataset(Dataset):
         return load_lotte(self.dataset.value, self.datasplit, self.type_)
 
     def _eval(self, expected, rankings):
-        raise AssertionError
+        K_VALUES = [5]
+        return {
+            f"Success@{k}": _success_at_k_lotte(expected=expected, rankings=rankings, k=5)
+            for k in K_VALUES
+        }
 
-def _load_lotte_collection(collection_path):
+def _success_at_k_lotte(expected, rankings, k):
+    num_total_qids, success = 0, 0
+    for qid, answer_pids in expected.data.items():
+        num_total_qids += 1
+        if qid not in rankings.data:
+            print(f"WARNING: qid {qid} not found in {rankings}!", file=sys.stderr)
+            continue
+        qid_rankings = set(map(lambda x: x[0], rankings.data[qid][:k]))
+        if len(qid_rankings.intersection(answer_pids)) > 0:
+                success += 1
+    return success / num_total_qids * 100
+
+def _load_collection_lotte(collection_path):
     collection = []
     print("#> Loading collection from", collection_path, "...")
     with open(collection_path) as f:
@@ -92,7 +109,7 @@ def load_lotte(dataset, datasplit, type_):
     dataset_path = os.path.join(LOTTE_COLLECTION_PATH, dataset, datasplit)
 
     collection_path = os.path.join(dataset_path, "collection.tsv")
-    collection = _load_lotte_collection(collection_path)
+    collection = _load_collection_lotte(collection_path)
 
     queries_path = os.path.join(dataset_path, f"questions.{type_}.tsv")
     queries = _load_queries_lotte(queries_path)

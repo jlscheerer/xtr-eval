@@ -98,6 +98,4 @@ def eval_metrics_beir(qrels: Qrels, rankings: Rankings):
                 final_metrics[f"{metric_name}@{k}"] / len(final_scores), 5
             )
 
-    print("[Result]")
-    for metric_name, metric_score in final_metrics.items():
-        print(f"{metric_name}: {metric_score:.4f}")
+    return final_metrics
