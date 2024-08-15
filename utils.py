@@ -47,6 +47,7 @@ if __name__ == "__main__":
     parser.add_argument("-t", "--type", choices=["search", "forum"])
     parser.add_argument("-s", "--split", choices=["train", "test", "dev"])
     parser.add_argument("-i", "--index", choices=["scann", "faiss", "bruteforce"])
+    parser.add_argument("-m", "--max_num_tokens", type=int)
     args = parser.parse_args()
 
     assert len(args.mode) == 1
@@ -54,5 +55,5 @@ if __name__ == "__main__":
 
     if mode == "index":
         dataset, index_config = get_dataset(parser, args), get_index_config(parser, args)
-        build_index(dataset, index_config)
+        build_index(dataset, index_config, max_num_tokens=args.max_num_tokens)
     else: raise AssertionError

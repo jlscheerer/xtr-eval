@@ -101,7 +101,13 @@ class XTR(object):
     def _build_index(self, collection):
         batch_size = self.config.build_batch_size
 
-        all_token_embeds = np.zeros((len(collection)*self.config.max_seq_len, self.config.token_embed_dim), dtype=np.float32)
+        max_num_tokens = len(collection) * self.config.max_seq_len
+        # Provide the ability to explicitly set the max number of tokens to prevent OOM issues.
+        if self.config.max_num_tokens is not None:
+            max_num_tokens = self.config.max_num_tokens
+            print(f"#> Explicitly setting max_num_tokens = {max_num_tokens}")
+
+        all_token_embeds = np.zeros((max_num_tokens, self.config.token_embed_dim), dtype=np.float32)
         all_doc_offsets = []
         num_tokens = 0
         for batch_idx, batch_docs in collection.enumerate_batches(batch_size=batch_size):

@@ -1,5 +1,6 @@
 import os
 import abc
+from typing import Optional
 from dataclasses import dataclass
 from enum import Enum
 
@@ -130,6 +131,8 @@ class XTRConfig:
 
     build_batch_size: int = 32
     override: bool = False
+
+    max_num_tokens: Optional[int] = None
 
     @property
     def index_type(self):
