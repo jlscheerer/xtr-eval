@@ -254,10 +254,13 @@ class XTR(object):
         all_query_encodings, query_offsets = self._get_flatten_embeddings(batch_query, maxlen=self.config.query_maxlen, return_last_offset=True)
         tracker.end("Query Encoding")
 
-        tracker.begin("Candidate Generation")
+        tracker.begin("search_batched")
         all_neighbors, all_scores = self.searcher.search_batched(
             all_query_encodings, final_num_neighbors=token_top_k, leaves_to_search=leaves_to_search, pre_reorder_num_neighbors=pre_reorder_num_neighbors
         )
+        tracker.end("search_batched")
+
+        tracker.begin("enumerate_scores")
         result = [
             (
                 [f'q_{i}' for i in range(query_offsets[oid], query_offsets[oid+1])],  # query_id
@@ -266,7 +269,7 @@ class XTR(object):
             )
             for oid in range(len(query_offsets)-1)
         ]
-        tracker.end("Candidate Generation")
+        tracker.end("enumerate_scores")
         return result
 
     def _estimate_missing_similarity(self, batch_result, tracker):
@@ -283,7 +286,7 @@ class XTR(object):
     def _aggregate_scores(self, batch_result, batch_ems, document_top_k, tracker):
         """Aggregates token-level retrieval scores into query-document scores."""
 
-        tracker.begin("Aggregate Scores")
+        tracker.begin("get_did2scores")
         def get_did2scores(query_tokens, all_neighbors, all_scores):
             did2scores = {}
             # |Q| x k'
@@ -300,8 +303,11 @@ class XTR(object):
                         did2scores[docid][qtoken_with_idx] = score
 
             return did2scores
-        batch_did2scores = [get_did2scores(qtokens, neighbors, scores) for qtokens, neighbors, scores in batch_result]
 
+        batch_did2scores = [get_did2scores(qtokens, neighbors, scores) for qtokens, neighbors, scores in batch_result]
+        tracker.end("get_did2scores")
+
+        tracker.begin("add_ems")
         def add_ems(did2scores, query_tokens, ems):
             # |Q| x |Q|k' (assuming most docid is unique)
             for qtoken_idx, qtoken in enumerate(query_tokens):
@@ -309,9 +315,12 @@ class XTR(object):
                 for _, scores in did2scores.items():
                     if qtoken_with_idx not in scores:
                         scores[qtoken_with_idx] = ems[qtoken_with_idx]
+
         for did2scores, result, ems in zip(batch_did2scores, batch_result, batch_ems):
             add_ems(did2scores, result[0], ems)
+        tracker.end("add_ems")
 
+        tracker.begin("get_final_score")
         def get_final_score(did2scores, query_tokens):
             final_qd_score = {}
             # |Q|k' x |Q|
@@ -321,12 +330,14 @@ class XTR(object):
             return final_qd_score
 
         batch_scores = [get_final_score(did2scores, result[0]) for did2scores, result in zip(batch_did2scores, batch_result)]
+        tracker.end("get_final_score")
 
+        tracker.begin("sort_scores")
         batch_ranking = [
             sorted([(docid, score) for docid, score in final_qd_score.items()], key=lambda x: x[1], reverse=True)[:document_top_k]
             for final_qd_score in batch_scores
         ]
-        tracker.end("Aggregate Scores")
+        tracker.end("sort_scores")
         return batch_ranking
 
     def _get_document_text(self, batch_ranking):
