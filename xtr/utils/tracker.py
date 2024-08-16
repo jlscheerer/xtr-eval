@@ -16,7 +16,7 @@ class ExecutionTrackerIteration:
 
 # TODO(jlscheerer) Support min/max and mode here also
 class ExecutionTracker:
-    def __init__(self, name, steps):
+    def __init__(self, name, steps, substeps=None):
         self._name = name
         self._steps = steps
         self._num_iterations = 0
@@ -27,17 +27,30 @@ class ExecutionTracker:
         self._iter_begin = None
         self._iter_time = 0
 
+        self._substeps = substeps
+        if self._substeps is not None:
+            self._time_per_substep = {}
+            for step, substeps in self._substeps.items():
+                for substep in substeps:
+                    assert substep not in self._time_per_substep
+                    self._time_per_substep[substep] = 0
+
     def next_iteration(self):
         self._num_iterations += 1
         self._iterating = True
         self._current_steps = []
         self._iter_begin = time.time()
 
+        if self.substeps is not None:
+            self._current_substeps = []
+
     def end_iteration(self):
         tok = time.time()
         if self._steps != self._current_steps:
             print(self._steps, self._current_steps)
         assert self._steps == self._current_steps
+        if self._substeps is not None:
+            assert self._substeps == self._current_substeps
         self._iterating = False
         self._iter_time += tok - self._iter_begin
 
