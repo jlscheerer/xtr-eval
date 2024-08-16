@@ -22,13 +22,60 @@ class XTROpt(XTR):
                 continue
             self.tid2did_vectorized[key] = value
 
-    def _aggregate_scores(self, batch_result, batch_ems, document_top_k, tracker):
-        """Aggregates token-level retrieval scores into query-document scores."""
-        assert len(batch_result) == 1 and len(batch_ems) == 1
+    def _get_token_embeddings(self, texts, maxlen):
+        batch_embeds = self.encoder([t.lower() for t in texts], maxlen=maxlen)
+        batch_lengths = torch.sum(batch_embeds["mask"].cpu(), axis=1)
+        return batch_embeds["encodings"].cpu(), batch_lengths
 
-        # TODO(jlscheerer) this is an extremely weird way of storing this!
-        # neighbors: (ntokens, token_top_k), represents the token_ids of the retrieved "candidates"
-        query_tokens, neighbors, scores = batch_result[0]
+    def _get_flatten_embeddings(self, batch_text, maxlen, return_last_offset=False):
+        batch_embeddings, batch_lengths = self._get_token_embeddings(batch_text, maxlen=maxlen)
+
+        nqueries = batch_lengths.flatten().shape[0]
+        offsets = torch.zeros(nqueries + return_last_offset, dtype=torch.int32)
+        torch.cumsum(batch_lengths.flatten()[:(None if return_last_offset else -1)], dim=0, out=offsets[1:])
+
+        indices = torch.arange(maxlen).expand(nqueries, maxlen)
+        flatten_embeddings = batch_embeddings[indices < batch_lengths].view(-1, 128)
+        
+        return flatten_embeddings, offsets
+
+    def _batch_search_tokens(self, batch_query, token_top_k, leaves_to_search, pre_reorder_num_neighbors, tracker):
+        assert len(batch_query) == 1
+        
+        tracker.begin("Query Encoding")
+        query_encodings, query_offsets = self._get_flatten_embeddings(batch_query, maxlen=self.config.query_maxlen, return_last_offset=True)
+        tracker.end("Query Encoding")
+
+        tracker.begin("search_batched")
+        neighbors, scores = self.searcher.search_batched(
+            query_encodings, final_num_neighbors=token_top_k, leaves_to_search=leaves_to_search, pre_reorder_num_neighbors=pre_reorder_num_neighbors
+        )
+        tracker.end("search_batched")
+
+        tracker.begin("enumerate_scores")
+        tracker.end("enumerate_scores")
+        
+        return torch.from_numpy(neighbors).long(), torch.from_numpy(scores)
+
+    def _estimate_missing_similarity(self, batch_result, tracker):
+        neighbors, scores = batch_result
+        ntokens, _ = neighbors.shape
+
+        tracker.begin("Estimate Missing Similarity")
+        
+        ems_vector = torch.zeros(self.config.query_maxlen, dtype=torch.float32)
+
+        # Use similarity of the last token as imputed similarity.
+        ems_vector[:ntokens] = scores[:, -1]
+        
+        tracker.end("Estimate Missing Similarity")
+        
+        return ems_vector
+
+    def _aggregate_scores(self, batch_result, ems_vector, document_top_k, tracker):
+        """Aggregates token-level retrieval scores into query-document scores."""
+        assert ems_vector.shape == (self.config.query_maxlen,)
+        neighbors, scores = batch_result
 
         assert neighbors.shape == scores.shape
         ntokens, token_top_k = neighbors.shape
@@ -53,19 +100,12 @@ class XTROpt(XTR):
         score_matrix = torch.zeros((ncandidates, self.config.query_maxlen), dtype=torch.float)
 
         # Populate the score matrix using the maximum value for each index.
-        flat_score_matrix, _ = scatter_max(torch.from_numpy(scores.flatten()), indices, out=score_matrix.view(-1))
+        flat_score_matrix, _ = scatter_max(scores.flatten(), indices, out=score_matrix.view(-1))
         score_matrix = flat_score_matrix.view(score_matrix.size())
         
         tracker.end("get_did2scores")
 
         tracker.begin("add_ems")
-
-        # TODO(jlscheerer) Adapt this once we compute batch_ems more efficiently.
-        # i.e., we should directly emit this instead of changing the format here.
-        # print(batch_ems)
-        ems_vector = torch.zeros(self.config.query_maxlen, dtype=torch.float32)
-        for (idx, _), score in batch_ems[0].items():
-            ems_vector[idx] = score.item()
 
         # Apply the ems values column-wise (by replacing zeros).
         ems_matrix = ems_vector.view(1, -1).expand_as(score_matrix)
