@@ -55,7 +55,7 @@ class XTROpt(XTR):
         tracker.begin("enumerate_scores")
         tracker.end("enumerate_scores")
         
-        return torch.from_numpy(neighbors).long(), torch.from_numpy(scores)
+        return neighbors, torch.from_numpy(scores)
 
     def _estimate_missing_similarity(self, batch_result, tracker):
         neighbors, scores = batch_result
