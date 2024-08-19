@@ -5,7 +5,7 @@ DATASETS = [BEIRDataset(dataset=BEIR.SCIFACT, datasplit="test"),
             LoTTEDataset(dataset=LoTTE.LIFESTYLE, datasplit="test"),
             LoTTEDataset(dataset=LoTTE.TECHNOLOGY, datasplit="test")]
 INDEX_CONFIGS = [XTRScaNNIndexConfig()]
-TOKEN_TOP_K_VALUES = [1_000, 40_0000]
+TOKEN_TOP_K_VALUES = [1_000, 40_000]
 
 for _ in range(NUM_RUNS_PER_EXPERIMENT):
     xtr_run_configurations(datasets=DATASETS, index_configs=INDEX_CONFIGS,
