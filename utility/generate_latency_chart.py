@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import math
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -89,7 +90,8 @@ def _render_aggregated_latency_results(latencies, name):
     for latency in latencies:
         breakdown = _latency_breakdown(latency)
         totals.append(sum([x[1] for x in breakdown]) * 1000)
-    bound = round(max(*totals) / 100) * 100
+    print(totals)
+    bound = math.ceil(max(*totals) / 100) * 100
 
     pdf = PdfPages(os.path.join("results", name))
     for latency in latencies:
