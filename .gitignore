@@ -3,3 +3,4 @@ __pycache__/
 *$py.class
 .mypy_cache/
 .ipynb_checkpoints/
+config.yml

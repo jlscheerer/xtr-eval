@@ -8,13 +8,12 @@ from beir.datasets.data_loader import GenericDataLoader
 
 import pytrec_eval
 
+from xtr.datasets.collection_paths import BEIR_COLLECTION_PATH
 from xtr.datasets.dataset import Dataset, Datasplit
 from xtr.data.collection import MappedCollection
 from xtr.data.queries import Queries
 from xtr.data.rankings import Rankings
 from xtr.data.qrels import Qrels
-
-BEIR_COLLECTION_PATH = "/lfs/1/scheerer/datasets/beir/datasets/"
 
 # https://github.com/beir-cellar/beir?tab=readme-ov-file#beers-available-datasets
 class BEIR(Enum):
