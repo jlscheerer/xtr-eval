@@ -18,9 +18,11 @@ from xtr.data.qrels import Qrels
 # https://github.com/beir-cellar/beir?tab=readme-ov-file#beers-available-datasets
 class BEIR(Enum):
     NFCORPUS = "nfcorpus"
-    FIQA_2018 = "fiqa"
-    SCIDOCS = "scidocs"
     SCIFACT = "scifact"
+    SCIDOCS = "scidocs"
+    FIQA_2018 = "fiqa"
+    TOUCHE_2020 = "webis-touche2020"
+    QUORA = "quora"
 
 @dataclass
 class BEIRDataset(Dataset):
