@@ -30,14 +30,19 @@ def index_size(dataset, index_config):
 def bytes_to_gib(size):
     return size / (1024 * 1024 * 1024)
 
-DATASETS = [BEIRDataset(dataset=BEIR.SCIFACT, datasplit="test"),
+DATASETS = [BEIRDataset(dataset=BEIR.NFCORPUS, datasplit="test"),
+            BEIRDataset(dataset=BEIR.SCIFACT, datasplit="test"),
             BEIRDataset(dataset=BEIR.SCIDOCS, datasplit="test"),
             BEIRDataset(dataset=BEIR.FIQA_2018, datasplit="test"),
+            BEIRDataset(dataset=BEIR.TOUCHE_2020, datasplit="test"),
+            BEIRDataset(dataset=BEIR.QUORA, datasplit="test"),
             LoTTEDataset(dataset=LoTTE.LIFESTYLE, datasplit="test"),
+            LoTTEDataset(dataset=LoTTE.RECREATION, datasplit="test"),
+            LoTTEDataset(dataset=LoTTE.WRITING, datasplit="test"),
             LoTTEDataset(dataset=LoTTE.TECHNOLOGY, datasplit="test"),
             LoTTEDataset(dataset=LoTTE.SCIENCE, datasplit="test"),
             LoTTEDataset(dataset=LoTTE.POOLED, datasplit="test"),]
-INDEX_CONFIGS = [XTRBruteForceIndexConfig(), XTRScaNNIndexConfig()]
+INDEX_CONFIGS = [XTRBruteForceIndexConfig(), XTRFAISSIndexConfig(), XTRScaNNIndexConfig()]
 
 for dataset in DATASETS:
     for index_config in INDEX_CONFIGS:
