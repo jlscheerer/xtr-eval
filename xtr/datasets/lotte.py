@@ -7,12 +7,11 @@ from typing import Literal, Union
 
 import jsonlines
 
+from xtr.datasets.collection_paths import LOTTE_COLLECTION_PATH
 from xtr.datasets.dataset import Dataset, Datasplit
 from xtr.data.collection import Collection
 from xtr.data.queries import Queries
 from xtr.data.qas import Qas
-
-LOTTE_COLLECTION_PATH = "/lfs/1/scheerer/datasets/lotte/lotte/"
 
 # https://downloads.cs.stanford.edu/nlp/data/colbert/colbertv2/lotte.tar.gz
 class LoTTE(Enum):
