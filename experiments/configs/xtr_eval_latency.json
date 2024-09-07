@@ -5,7 +5,7 @@
         "datasets": [
             "beir.nfcorpus"
         ],
-        "optimized": [false],
+        "optimized": [true],
         "document_top_k": [100],
         "token_top_k": [1000],
         "datasplit": "test",

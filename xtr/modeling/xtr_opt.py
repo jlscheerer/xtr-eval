@@ -13,7 +13,7 @@ class XTROpt(XTR):
     def __init__(self, config: XTRConfig, collection: Collection, device=torch.device("cuda")):
         super().__init__(config=config, collection=collection, device=device)
 
-        # TODO(jlscheerer) Perhaps we should cache this?
+        # NOTE We could potentially cache this; but this doesn't affect runtime performance.
         ntokens = len(self.tid2did) - 1 # tid2did contains -1 for invalid
         self.tid2did_vectorized = torch.zeros(ntokens, dtype=torch.int32)
 
@@ -124,7 +124,7 @@ class XTROpt(XTR):
 
         tracker.begin("sort_scores")
 
-        # TODO(jlscheerer) We could switch to top-k for small document_top_k values.
+        # NOTE We could switch to top-k for small document_top_k values.
         scores, indices = torch.sort(scores, stable=True, descending=True)
         document_ids = idx_to_candidate_did[indices]
         

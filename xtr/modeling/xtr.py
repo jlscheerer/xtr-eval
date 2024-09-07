@@ -71,7 +71,6 @@ class XTR(object):
 
         self.encoder = XTREncoder(self.config, device=device)
         if os.path.exists(config.path) and not self.config.override:
-            # TODO(jlscheerer) We could check that the provided collection is compatible with the loaded one.
             self._load_index(config)
         else:
             self._build_index(Collection.cast(collection))
