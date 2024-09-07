@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 LABEL = "scann"
-OPT = False
+OPT = True
 
 def _extract_run_config(run):
     return {

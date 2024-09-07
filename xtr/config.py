@@ -127,7 +127,7 @@ class XTRConfig:
 
     # Default parameters taken from https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
     token_top_k: int = 100
-    document_top_k: int = 100
+    document_top_k: int = 40_000
 
     build_batch_size: int = 32
     override: bool = False
