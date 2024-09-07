@@ -164,9 +164,4 @@ class XTRConfig:
             return False
         if self.max_seq_len != other.max_seq_len:
             return False
-
-        if self.token_top_k != other.token_top_k:
-            return False
-        if self.document_top_k != other.document_top_k:
-            return False
         return True

@@ -23,7 +23,12 @@ if __name__ == "__main__":
 
     index_name = canonical_index_name(dataset=dataset, index_config=index_config)
     xtr_config = XTRConfig(index_name=index_name, model=XTRModel.BASE_EN, index_config=index_config, override=False)
-    xtr = XTR(config=xtr_config, collection=dataset.collection, device=torch.device("cpu"))
+    if not config["optimized"]:
+        from xtr.modeling.xtr import XTR
+        xtr = XTR(config=xtr_config, collection=dataset.collection, device=torch.device("cpu"))
+    else:
+        from xtr.modeling.xtr_opt import XTROpt
+        xtr = XTROpt(config=xtr_config, collection=dataset.collection, device=torch.device("cpu"))
     tracker = xtr_tracker(name=index_name)
     rankings = xtr.retrieve_docs(dataset.queries, document_top_k=config["document_top_k"],
                                  token_top_k=config["token_top_k"], tracker=tracker)
