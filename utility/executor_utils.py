@@ -1,12 +1,13 @@
 import os
 import json
-
 import os
 import io
 import sys
+import subprocess
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from contextlib import redirect_stdout
+
 
 BEIR_DATASETS = ["nfcorpus", "scifact", "scidocs", "fiqa", "webis-touche2020", "quora"]
 LOTTE_DATASETS = ["lifestyle", "writing", "recreation", "technology", "science", "pooled"]
@@ -62,8 +63,8 @@ def _get(config, key):
 def _expand_configs_file(configuration_file):
     configs = configuration_file["configurations"]
     return _expand_configs(datasets=_get(configs, "datasets"), index_types=_get(configs, "index_type"),
-                           optimized=_get(configs, "optimized"),document_top_ks=_get(configs, "document_top_ks"),
-                           token_top_ks=_get(configs, "token_top_ks"), split=_get(configs, "datasplit"))
+                           optimized=_get(configs, "optimized"),document_top_ks=_get(configs, "document_top_k"),
+                           token_top_ks=_get(configs, "token_top_k"), split=_get(configs, "datasplit"))
 
 def _write_results(results_file, data):
     with open(results_file, "w") as file:
@@ -88,7 +89,7 @@ def _init_proc(env_vars):
     for key, value in env_vars.items():
         os.environ[key] = value
 
-def _execute_configs_parallel(configs, callback, type_, results_file, max_workers):
+def _execute_configs_parallel(configs, callback, type_, params, results_file, max_workers):
     env_vars = dict(os.environ)
     progress = tqdm(total=len(configs))
     results = []
@@ -97,13 +98,14 @@ def _execute_configs_parallel(configs, callback, type_, results_file, max_worker
         ) as executor, redirect_stdout(
             io.StringIO()
         ) as rd_stdout:
-        futures = {executor.submit(callback, config): config for config in configs}
+        futures = {executor.submit(callback, config, params): config for config in configs}
         for future in as_completed(futures.keys()):
             result = future.result()
             config = futures[future]
 
             result["provenance"] = config
             result["provenance"]["type"] = type_
+            result["provenance"]["params"] = params
             results.append(result)
             _write_results(results_file=results_file, data=results)
             
@@ -112,12 +114,13 @@ def _execute_configs_parallel(configs, callback, type_, results_file, max_worker
             progress.update(1)
     progress.close()
 
-def _execute_configs_sequential(configs, callback, type_, results_file):
+def _execute_configs_sequential(configs, callback, type_, params, results_file):
     results = []
     for config in tqdm(configs):
-        result = callback(config)
+        result = callback(config, params)
         result["provenance"] = config
         result["provenance"]["type"] = type_
+        result["provenance"]["params"] = params
         results.append(result)
         _write_results(results_file=results_file, data=results)
 
@@ -125,6 +128,31 @@ def execute_configs(exec_info, configs, results_file, type_, params, max_workers
     exec_info = exec_info[type_]
     callback, parallelizable = exec_info["callback"], exec_info["parallelizable"]
     if parallelizable:
-        _execute_configs_parallel(configs, callback, type_, results_file, max_workers=max_workers)
+        _execute_configs_parallel(configs, callback, type_, params, results_file, max_workers=max_workers)
     else:
-        _execute_configs_sequential(configs, callback, type_, results_file)
+        _execute_configs_sequential(configs, callback, type_, params, results_file)
+
+def read_subprocess_inputs():
+    data = json.loads(input())
+    return data["config"], data["params"]
+
+def publish_subprocess_results(results):
+    print("")
+    print(json.dumps(results))
+    print("#> Done")
+
+def spawn_and_execute(script, config, params):
+    process = subprocess.run(
+        ["python", script],
+        input=json.dumps({"config": config, "params": params}),
+        stdout=subprocess.PIPE, 
+        bufsize=1,
+        text=True,
+        env={**os.environ, 'PYTHONPATH': os.getcwd()},
+        cwd=os.getcwd()
+    )
+    response = process.stdout.strip().split("\n")
+    if response[-1] != "#> Done" or process.returncode != 0:
+        print(process.stderr, file=sys.stderr)
+    assert response[-1] == "#> Done"
+    return json.loads(response[-2])
