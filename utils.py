@@ -4,6 +4,7 @@ from xtr.config import XTRScaNNIndexConfig, XTRFAISSIndexConfig, XTRBruteForceIn
 from xtr.datasets import LoTTE, LoTTEDataset, BEIR, BEIRDataset
 
 from utility.build_index import build_index
+from utility.index_sizes import compute_index_sizes
 
 def parse_dataset(collection, dataset, split, type_):
     if collection is None or dataset is None or split is None:
@@ -41,7 +42,7 @@ if __name__ == "__main__":
         description="Evaluation Tool for DeepMind's XTR"
     )
 
-    parser.add_argument("mode", choices=["index"], nargs=1)
+    parser.add_argument("mode", choices=["index", "index_sizes"], nargs=1)
     parser.add_argument("-c", "--collection", choices=["beir", "lotte"])
     parser.add_argument("-d", "--dataset")
     parser.add_argument("-t", "--type", choices=["search", "forum"])
@@ -56,4 +57,6 @@ if __name__ == "__main__":
     if mode == "index":
         dataset, index_config = get_dataset(parser, args), get_index_config(parser, args)
         build_index(dataset, index_config, max_num_tokens=args.max_num_tokens)
+    elif mode == "index_sizes":
+        compute_index_sizes()
     else: raise AssertionError

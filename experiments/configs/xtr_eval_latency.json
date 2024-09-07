@@ -1,0 +1,14 @@
+{
+    "name": "xtr_eval_latency",
+    "type": "latency",
+    "configurations": {
+        "datasets": [
+            "beir.nfcorpus"
+        ],
+        "optimized": [false],
+        "document_top_k": [100],
+        "token_top_k": [1000],
+        "datasplit": "test",
+        "index_type": ["scann"]
+    }
+}
