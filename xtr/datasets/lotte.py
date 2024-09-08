@@ -43,11 +43,11 @@ class LoTTEDataset(Dataset):
         return load_lotte(self.dataset.value, self.datasplit, self.type_)
 
     def _eval(self, expected, rankings):
-        K_VALUES = [5]
-        return {
-            f"Success@{k}": _success_at_k_lotte(expected=expected, rankings=rankings, k=5)
-            for k in K_VALUES
-        }
+        K_VALUES = [5, 10, 100, 1000]
+        final_metrics = dict()
+        for k in K_VALUES:
+            final_metrics[f"Success@{k}"] = _success_at_k_lotte(expected=expected, rankings=rankings, k=k)
+            final_metrics[f"Recall@{k}"] = _recall_at_k_lotte(expected=expected, rankings=rankings, k=k)
 
 def _success_at_k_lotte(expected, rankings, k):
     num_total_qids, success = 0, 0
@@ -60,6 +60,21 @@ def _success_at_k_lotte(expected, rankings, k):
         if len(qid_rankings.intersection(answer_pids)) > 0:
                 success += 1
     return success / num_total_qids * 100
+
+def _recall_at_k_lotte(expected, rankings, k):
+    avg, num_relevant = 0, 0
+    for qid, answer_pids in expected.data.items():
+        if str(qid) not in rankings.data:
+            print(f"WARNING: qid {qid} not found in {rankings}!", file=sys.stderr)
+            continue
+        relevant_count = len(answer_pids)
+        if relevant_count == 0:
+            continue
+        num_relevant += 1
+        qid_rankings = set(map(lambda x: x[0], rankings.data[str(qid)][:k]))
+        correct_count = len(answer_pids & qid_rankings)
+        avg += correct_count / relevant_count
+    return avg / num_relevant
 
 def _load_collection_lotte(collection_path):
     collection = []
