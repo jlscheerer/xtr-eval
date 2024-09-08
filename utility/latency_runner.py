@@ -2,23 +2,27 @@ import os
 # Enforces CPU-only execution of torch
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
-# Configure environment to ensure single-threaded execution.
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"]= "1"
-os.environ["OMP_NUM_THREADS"] = "1"
-
-import torch
-torch.set_num_threads(1)
-
 from utility.executor_utils import read_subprocess_inputs, publish_subprocess_results
-from utility.runner_utils import make_index_config, make_dataset
-
-from xtr.config import XTRConfig, XTRModel
-from xtr.utils import xtr_tracker, canonical_index_name
-from xtr.modeling.xtr import XTR
 
 if __name__ == "__main__":
     config, params = read_subprocess_inputs()
+
+    num_threads = params.get("num_threads", 1)
+
+    # Configure environment to ensure single-threaded execution.
+    os.environ["MKL_NUM_THREADS"] = str(num_threads)
+    os.environ["NUMEXPR_NUM_THREADS"]= str(num_threads)
+    os.environ["OMP_NUM_THREADS"] = str(num_threads)
+
+    import torch
+    torch.set_num_threads(num_threads)
+
+    from utility.runner_utils import make_index_config, make_dataset
+
+    from xtr.config import XTRConfig, XTRModel
+    from xtr.utils import xtr_tracker, canonical_index_name
+    from xtr.modeling.xtr import XTR
+
     index_config, dataset = make_index_config(config), make_dataset(config)
 
     index_name = canonical_index_name(dataset=dataset, index_config=index_config)
