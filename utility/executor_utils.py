@@ -105,7 +105,7 @@ def _execute_configs_parallel(configs, callback, type_, params, results_file, ma
 
             result["provenance"] = config
             result["provenance"]["type"] = type_
-            result["provenance"]["params"] = params
+            result["provenance"]["parameters"] = params
             results.append(result)
             _write_results(results_file=results_file, data=results)
             
@@ -120,7 +120,7 @@ def _execute_configs_sequential(configs, callback, type_, params, results_file):
         result = callback(config, params)
         result["provenance"] = config
         result["provenance"]["type"] = type_
-        result["provenance"]["params"] = params
+        result["provenance"]["parameters"] = params
         results.append(result)
         _write_results(results_file=results_file, data=results)
 

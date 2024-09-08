@@ -29,6 +29,12 @@ def latency(config, params):
         "tracker": [x["tracker"] for x in results]
     }
 
+def metrics(config, params):
+    run = spawn_and_execute("utility/latency_runner.py", config, params)
+    return {
+        "metrics": run["metrics"]
+    }
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='xtr-eval Experiment [Executor/Platform]')
     parser.add_argument("-c", "--config", required=True)
@@ -42,7 +48,8 @@ if __name__ == "__main__":
 
     EXEC_INFO = {
         "index_size": {"callback": index_size, "parallelizable": True},
-        "latency": {"callback": latency, "parallelizable": False}
+        "latency": {"callback": latency, "parallelizable": False},
+        "metrics": {"callback": metrics, "parallelizable": True}
     }
     execute_configs(EXEC_INFO, configs, results_file=results_file, type_=type_,
                     params=params, max_workers=MAX_WORKERS)
