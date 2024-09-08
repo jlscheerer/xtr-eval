@@ -1,19 +1,24 @@
 import torch
-import numpy as np
 from torch_scatter import scatter_max
 
+import os
 from tqdm import tqdm
 
 from xtr.modeling.xtr import XTR
 from xtr.config import XTRConfig
 from xtr.data.collection import Collection
 
-
 class XTROpt(XTR):
     def __init__(self, config: XTRConfig, collection: Collection, device=torch.device("cuda")):
         super().__init__(config=config, collection=collection, device=device)
+        self._load_tid2did_vectorized()
 
-        # NOTE We could potentially cache this; but this doesn't affect runtime performance.
+    def _load_tid2did_vectorized(self):
+        tid2did_vectorized_file = os.path.join(self.config.path, "tid2did_vectorized.pt")
+        if os.path.exists(tid2did_vectorized_file):
+            print("#> Loading cached vectorized tid2did map.")
+            self.tid2did_vectorized = torch.load(tid2did_vectorized_file, weights_only=True)
+            return
         ntokens = len(self.tid2did) - 1 # tid2did contains -1 for invalid
         self.tid2did_vectorized = torch.zeros(ntokens, dtype=torch.int32)
 
@@ -21,6 +26,10 @@ class XTROpt(XTR):
             if key == -1:
                 continue
             self.tid2did_vectorized[key] = value
+        print("#> Saving vectorized tid2did map")
+        torch.save(self.tid2did_vectorized, tid2did_vectorized_file)
+        print("#> Done.")
+
 
     def _get_token_embeddings(self, texts, maxlen):
         batch_embeds = self.encoder([t.lower() for t in texts], maxlen=maxlen)
