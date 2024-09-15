@@ -12,7 +12,7 @@ from contextlib import redirect_stdout
 BEIR_DATASETS = ["nfcorpus", "scifact", "scidocs", "fiqa", "webis-touche2020", "quora"]
 LOTTE_DATASETS = ["lifestyle", "writing", "recreation", "technology", "science", "pooled"]
 
-def _make_config(collection, dataset, index_type, opt, document_top_k, token_top_k, split="test"):
+def _make_config(collection, dataset, index_type, opt, document_top_k, token_top_k, split="test", num_threads=1):
     assert collection in ["beir", "lotte"]
     if collection == "beir":
         assert dataset in BEIR_DATASETS
@@ -30,10 +30,13 @@ def _make_config(collection, dataset, index_type, opt, document_top_k, token_top
         "optimized": opt,
         "document_top_k": document_top_k,
         "token_top_k": token_top_k,
-        "split": split
+        "split": split,
+        "num_threads": num_threads
     }
 
-def _expand_configs(datasets, index_types, optimized, document_top_ks, token_top_ks, split="test"):
+def _expand_configs(datasets, index_types, optimized, document_top_ks, token_top_ks, split="test", num_threads=None):
+    if num_threads is None:
+        num_threads = 1
     if not isinstance(datasets, list):
         datasets = [datasets]
     if not isinstance(index_types, list):
@@ -44,6 +47,8 @@ def _expand_configs(datasets, index_types, optimized, document_top_ks, token_top
         document_top_ks = [document_top_ks]
     if not isinstance(token_top_ks, list):
         token_top_ks = [token_top_ks]
+    if not isinstance(num_threads, list):
+        num_threads = [num_threads]
     configs = []
     for collection_dataset in datasets:
         collection, dataset = collection_dataset.split(".")
@@ -51,8 +56,9 @@ def _expand_configs(datasets, index_types, optimized, document_top_ks, token_top
             for opt in optimized:
                 for document_top_k in document_top_ks:
                     for token_top_k in token_top_ks:
-                        configs.append(_make_config(collection=collection, dataset=dataset, index_type=index_type, opt=opt,
-                                                document_top_k=document_top_k, token_top_k=token_top_k, split=split))
+                        for threads in num_threads:
+                            configs.append(_make_config(collection=collection, dataset=dataset, index_type=index_type, opt=opt,
+                                                        document_top_k=document_top_k, token_top_k=token_top_k, split=split, num_threads=threads))
     return configs
 
 def _get(config, key):
@@ -64,7 +70,8 @@ def _expand_configs_file(configuration_file):
     configs = configuration_file["configurations"]
     return _expand_configs(datasets=_get(configs, "datasets"), index_types=_get(configs, "index_type"),
                            optimized=_get(configs, "optimized"),document_top_ks=_get(configs, "document_top_k"),
-                           token_top_ks=_get(configs, "token_top_k"), split=_get(configs, "datasplit"))
+                           token_top_ks=_get(configs, "token_top_k"), split=_get(configs, "datasplit"),
+                           num_threads=_get(configs, "num_threads"))
 
 def _write_results(results_file, data):
     with open(results_file, "w") as file:
