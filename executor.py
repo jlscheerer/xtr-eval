@@ -16,7 +16,6 @@ def index_size(config, params):
     }
 
 def latency(config, params):
-    assert len(params) == 0
     NUM_RUNS = params.get("num_runs", 3)
     assert NUM_RUNS > 0
     results = []

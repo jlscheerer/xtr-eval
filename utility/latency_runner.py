@@ -27,6 +27,7 @@ if __name__ == "__main__":
 
     os.environ["OMP_WAIT_POLICY"] = "PASSIVE"
     os.environ["KMP_AFFINITY"] = "disabled"
+    os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
     import torch
     torch.set_num_threads(num_threads)
@@ -47,6 +48,7 @@ if __name__ == "__main__":
     else:
         from xtr.modeling.xtr_opt import XTROpt
         xtr = XTROpt(config=xtr_config, collection=dataset.collection, device=torch.device("cpu"))
+    xtr.set_num_threads(num_threads)
     tracker = xtr_tracker(name=index_name)
     rankings = xtr.retrieve_docs(dataset.queries, document_top_k=config["document_top_k"],
                                  token_top_k=config["token_top_k"], tracker=tracker)

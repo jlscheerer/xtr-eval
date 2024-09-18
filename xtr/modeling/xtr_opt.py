@@ -56,7 +56,7 @@ class XTROpt(XTR):
         tracker.end("Query Encoding")
 
         tracker.begin("search_batched")
-        neighbors, scores = self.searcher.search_batched(
+        neighbors, scores = self._searcher_search_batched(
             query_encodings, final_num_neighbors=token_top_k, leaves_to_search=leaves_to_search, pre_reorder_num_neighbors=pre_reorder_num_neighbors
         )
         tracker.end("search_batched")
