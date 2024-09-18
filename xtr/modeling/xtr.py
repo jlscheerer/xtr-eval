@@ -18,13 +18,6 @@ from xtr.data.rankings import Rankings
 from xtr.modeling.encoder import XTREncoder
 from xtr.utils.tracker import NOPTracker
 
-# TODO(jlscheerer) Incorporate the following:
-"""
-if INDEX_TYPE == 'faiss':
-    sub_index = faiss.extract_index_ivf(xtr.searcher.index)
-    sub_index.nprobe = 4
-"""
-
 # Extracted from: https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
 class BruteForceSearcher(object):
     def __init__(self, all_token_embeds):
@@ -75,6 +68,10 @@ class XTR(object):
             self._load_index(config)
         else:
             self._build_index(Collection.cast(collection))
+
+        if config.index_type == XTRIndexType.FAISS:
+            sub_index = faiss.extract_index_ivf(self.searcher.index)
+            sub_index.nprobe = 4
 
     def _get_token_embeddings(self, texts, maxlen):
         batch_embeds = self.encoder([t.lower() for t in texts], maxlen=maxlen)
