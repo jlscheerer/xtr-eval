@@ -27,6 +27,7 @@ if __name__ == "__main__":
 
     os.environ["OMP_WAIT_POLICY"] = "PASSIVE"
     os.environ["KMP_AFFINITY"] = "disabled"
+    os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
     import torch
     torch.set_num_threads(num_threads)
