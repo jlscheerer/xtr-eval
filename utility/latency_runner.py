@@ -47,6 +47,7 @@ if __name__ == "__main__":
     else:
         from xtr.modeling.xtr_opt import XTROpt
         xtr = XTROpt(config=xtr_config, collection=dataset.collection, device=torch.device("cpu"))
+    xtr.set_num_threads(num_threads)
     tracker = xtr_tracker(name=index_name)
     rankings = xtr.retrieve_docs(dataset.queries, document_top_k=config["document_top_k"],
                                  token_top_k=config["token_top_k"], tracker=tracker)

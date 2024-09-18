@@ -1,4 +1,5 @@
 import os
+import sys
 import shutil
 import pickle
 from typing import Optional
@@ -74,6 +75,9 @@ class XTR(object):
             self._load_index(config)
         else:
             self._build_index(Collection.cast(collection))
+
+        self.can_parallel_scann = self.config.index_type == XTRIndexType.SCANN and hasattr(self.searcher.searcher, "set_num_threads")
+        self.num_threads = 1
 
     def _get_token_embeddings(self, texts, maxlen):
         batch_embeds = self.encoder([t.lower() for t in texts], maxlen=maxlen)
@@ -248,13 +252,29 @@ class XTR(object):
             self.searcher = BruteForceSearcher(self.all_token_embeds)
         else: raise AssertionError(f"Unsupported XTRIndexType {config.index_type}!")
 
+    def set_num_threads(self, num_threads):
+        self.num_threads = num_threads
+        if self.config.index_type ==  XTRIndexType.SCANN:
+            if self.can_parallel_scann:
+                self.searcher.searcher.set_num_threads(num_threads)
+            else: print("#> [WARNING] Cannot set_num_threads for ScaNN", file=sys.stderr)
+
+    def _searcher_search_batched(self, all_query_encodings, final_num_neighbors, leaves_to_search, pre_reorder_num_neighbors):
+        if self.can_parallel_scann and self.num_threads != 1:
+            return self.searcher.search_batched_parallel(
+                all_query_encodings, final_num_neighbors=final_num_neighbors, leaves_to_search=leaves_to_search, pre_reorder_num_neighbors=pre_reorder_num_neighbors
+            )
+        return self.searcher.search_batched(
+            all_query_encodings, final_num_neighbors=final_num_neighbors, leaves_to_search=leaves_to_search, pre_reorder_num_neighbors=pre_reorder_num_neighbors
+        )
+
     def _batch_search_tokens(self, batch_query, token_top_k, leaves_to_search, pre_reorder_num_neighbors, tracker):
         tracker.begin("Query Encoding")
         all_query_encodings, query_offsets = self._get_flatten_embeddings(batch_query, maxlen=self.config.query_maxlen, return_last_offset=True)
         tracker.end("Query Encoding")
 
         tracker.begin("search_batched")
-        all_neighbors, all_scores = self.searcher.search_batched(
+        all_neighbors, all_scores = self._searcher_search_batched(
             all_query_encodings, final_num_neighbors=token_top_k, leaves_to_search=leaves_to_search, pre_reorder_num_neighbors=pre_reorder_num_neighbors
         )
         tracker.end("search_batched")
