@@ -27,7 +27,7 @@ class BruteForceSearcher(object):
     def search_batched(self, query_embeds, final_num_neighbors, **kwargs):
         scores = query_embeds.numpy().dot(self.all_token_embeds.T) # Q x D
         top_ids = scores.argsort(axis=1)[:, ::-1][:,:final_num_neighbors] # Q x top_k
-        return top_ids, [q_score[q_top_ids] for q_score, q_top_ids in zip(scores, top_ids)] # (Q x top_k, Q x top_k)
+        return top_ids.copy(), np.array([q_score[q_top_ids] for q_score, q_top_ids in zip(scores, top_ids)]) # (Q x top_k, Q x top_k)
 
 # Extracted from: https://github.com/google-deepmind/xtr/blob/main/xtr_evaluation_on_beir_miracl.ipynb
 class FaissSearcher(object):
