@@ -24,7 +24,7 @@ class BruteForceSearcher(object):
         self.all_token_embeds = all_token_embeds
 
     def search_batched(self, query_embeds, final_num_neighbors, **kwargs):
-        scores = query_embeds.dot(self.all_token_embeds.T) # Q x D
+        scores = query_embeds.dot(torch.from_numpy(self.all_token_embeds).T) # Q x D
         top_ids = scores.argsort(axis=1)[:, ::-1][:,:final_num_neighbors] # Q x top_k
         return top_ids, [q_score[q_top_ids] for q_score, q_top_ids in zip(scores, top_ids)] # (Q x top_k, Q x top_k)
 
