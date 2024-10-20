@@ -1,0 +1,19 @@
+{
+    "name": "xtr_eval_index_sizes_dev_sets",
+    "type": "index_size",
+    "configurations": {
+        "datasets": [
+            "beir.nfcorpus",
+            "beir.quora",
+            "beir.fiqa",
+            "lotte.lifestyle",
+            "lotte.recreation",
+            "lotte.writing",
+            "lotte.technology",
+            "lotte.science",
+            "lotte.pooled"
+        ],
+        "datasplit": "dev",
+        "index_type": ["faiss", "scann"]
+    }
+}

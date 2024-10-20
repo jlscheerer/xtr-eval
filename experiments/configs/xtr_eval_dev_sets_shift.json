@@ -1,0 +1,24 @@
+{
+    "name": "xtr_eval_dev_sets_shift",
+    "type": "metrics",
+    "configurations": {
+        "datasets": [
+            "beir.nfcorpus",
+            "beir.fiqa",
+            "beir.quora",
+            "lotte.lifestyle",
+            "lotte.recreation",
+            "lotte.writing",
+            "lotte.technology",
+            "lotte.science",
+            "lotte.pooled"
+        ],
+        "optimized": [true],
+        "document_top_k": [1000],
+        "token_top_k": [875, 1125, 35000, 45000],
+        "datasplit": "dev",
+        "index_type": ["scann"],
+        "num_threads": 1,
+        "bound": 3000
+    }
+}
