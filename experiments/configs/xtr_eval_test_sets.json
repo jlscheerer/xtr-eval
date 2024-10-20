@@ -1,0 +1,26 @@
+{
+    "name": "xtr_eval_test_sets",
+    "type": "latency",
+    "configurations": {
+        "datasets": [
+            "beir.nfcorpus",
+            "beir.scifact",
+            "beir.scidocs",
+            "beir.fiqa",
+            "beir.quora",
+            "beir.webis-touche2020",
+            "lotte.lifestyle",
+            "lotte.recreation",
+            "lotte.writing",
+            "lotte.technology",
+            "lotte.science",
+            "lotte.pooled"
+        ],
+        "optimized": [true],
+        "document_top_k": [1000],
+        "token_top_k": [1000, 40000],
+        "datasplit": "test",
+        "index_type": ["scann"],
+        "num_threads": [1, 2, 4, 8, 16]
+    }
+}

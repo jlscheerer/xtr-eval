@@ -1,22 +1,25 @@
 {
-    "name": "xtr_eval_index_sizes",
-    "type": "index_size",
+    "name": "xtr_eval_test_unopt",
+    "type": "latency",
     "configurations": {
         "datasets": [
             "beir.nfcorpus",
-            "beir.scifact",
-            "beir.scidocs",
             "beir.quora",
             "beir.fiqa",
-            "beir.webis-touche2020",
             "lotte.lifestyle",
             "lotte.recreation",
             "lotte.writing",
-            "lotte.technology",
             "lotte.science",
+            "lotte.technology",
             "lotte.pooled"
         ],
+        "optimized": [false],
+        "document_top_k": [1000],
+        "token_top_k": [1000, 40000],
         "datasplit": "test",
-        "index_type": ["bruteforce", "faiss", "scann"]
+        "index_type": ["scann"]
+    },
+    "parameters": {
+        "num_runs": 1
     }
 }

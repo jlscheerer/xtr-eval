@@ -1,0 +1,21 @@
+{
+    "name": "xtr_eval_dev_sets_gcloud_faiss",
+    "type": "latency",
+    "configurations": {
+        "datasets": [
+            "beir.nfcorpus",
+            "beir.fiqa",
+            "beir.quora",
+            "lotte.lifestyle",
+            "lotte.recreation",
+            "lotte.writing",
+            "lotte.science"
+        ],
+        "optimized": [true],
+        "document_top_k": [1000],
+        "token_top_k": [1000, 40000],
+        "datasplit": "dev",
+        "index_type": ["faiss"],
+        "num_threads": [1, 2, 4, 8]
+    }
+}
